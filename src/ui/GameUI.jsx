@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 const GameContainer = dynamic(() => import('@/ui/GameContainer'), { ssr: false });
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import useGameStore from '@/store/gameStore';
+import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
 
 // ============================================================
 // EASTCRAFT MONARA — Game UI
@@ -252,16 +252,18 @@ function LockNote() {
 // SCREEN 2 — MONARA TOWER MAP
 // ============================================================
 function MapScreen({ go }) {
-  const floors = [
-    { n: 40, z: "Z4", name: "The Guardian", boss: true, locked: true },
-    { n: 32, z: "Z4", name: "Phrase Halls", locked: true },
-    { n: 24, z: "Z3", name: "Shadow Oni", locked: true },
-    { n: 18, z: "Z3", name: "Vocab Sanctum", locked: false },
-    { n: 12, z: "Z2", name: "Fire Imp", locked: false, current: true },
-    { n: 8, z: "Z2", name: "Number Gate", cleared: true },
-    { n: 4, z: "Z1", name: "Skeleton", cleared: true },
-    { n: 1, z: "Z1", name: "Alphabet Foot", cleared: true },
-  ];
+  const { highestFloorCleared, currentFloor, setCurrentFloor } = useGameStore();
+
+  // The lowest floor number that is strictly greater than highestFloorCleared
+  const nextAvailableFloorNum = [...TOWER_FLOORS].reverse().find(f => f.n > highestFloorCleared)?.n || 8;
+
+  const floors = TOWER_FLOORS.map(f => ({
+    ...f,
+    cleared: f.n <= highestFloorCleared,
+    current: f.n === currentFloor && f.n <= nextAvailableFloorNum,
+    locked: f.n > nextAvailableFloorNum
+  }));
+
   return (
     <Stage>
       <TopBar tier="Samurai" balance="52,400" go={go} />
@@ -269,12 +271,17 @@ function MapScreen({ go }) {
         maxWidth: 900, margin: "30px auto 0", alignItems: "start" }}>
         {/* tower column */}
         <div>
-          <Eyebrow>The Ascent · 40 Floors</Eyebrow>
+          <Eyebrow>The Ascent · 8 Floors</Eyebrow>
           <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30,
             color: C.ash, margin: "6px 0 22px" }}>Monara Tower</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {floors.map((f) => (
-              <FloorRow key={f.n} f={f} onFight={() => go("battle")} />
+              <FloorRow key={f.n} f={f} onFight={() => {
+                if (!f.locked) {
+                  setCurrentFloor(f.n);
+                  go("battle");
+                }
+              }} />
             ))}
           </div>
         </div>
@@ -283,7 +290,7 @@ function MapScreen({ go }) {
           <Panel>
             <Eyebrow>Run Stats</Eyebrow>
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 11 }}>
-              <Row label="Floors Cleared" value="11 / 40" mono />
+              <Row label="Floors Cleared" value={`${highestFloorCleared} / 8`} mono />
               <Row label="Total Earned" value="+8,250" mono gold />
               <Row label="Total Burned" value="−1,940" mono burn />
               <Row label="Win Rate" value="73%" mono />
@@ -340,7 +347,7 @@ function FloorRow({ f, onFight }) {
 }
 
 // ============================================================
-// SCREEN 3 — BATTLE (hero screen)
+// SCREEN 3 — BATTLE SCREEN
 // ============================================================
 const SIGNS = [
   { word: "FIRE", letters: ["F", "I", "R", "E"] },
@@ -349,8 +356,8 @@ const SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const [playerHP, setPlayerHP] = useState(80);
-  const [monsterHP, setMonsterHP] = useState(120);
+  const [playerHP, setPlayerHP] = useState(100);
+  const [monsterHP, setMonsterHP] = useState(100);
   const [signIdx, setSignIdx] = useState(0);
   const [conf, setConf] = useState(0.46);
   const [timer, setTimer] = useState(8);
@@ -360,7 +367,8 @@ function BattleScreen({ go }) {
   const [ePose, setEPose] = useState("idle");
   const [fx, setFx] = useState(null); // {side, txt}
 
-  const { latestPrediction, setTargetSign, triggerAction } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor } = useGameStore();
+  const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
 
   // confidence creep + timer
   useEffect(() => {
@@ -425,14 +433,29 @@ function BattleScreen({ go }) {
     setPPose("knock");
     setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
   };
+  const landMiss = () => {
+      takeHit();
+      setTimer(8);
+  };
 
   return (
     <Stage battle>
+      {/* Top Bar for battle */}
+      <div style={{ position: "absolute", top: 30, left: 30, right: 30, display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 10 }}>
+        <div>
+          <Eyebrow color={C.inkGold}>Active Battle</Eyebrow>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.ash, marginTop: 4 }}>
+            Zone {floorData.z.replace("Z", "")} / Floor {floorData.n}
+          </div>
+        </div>
+        <button onClick={() => go("map")} style={ghostBtn}>Flee (Burn 50%)</button>
+      </div>
+
       {/* combatant HP rail */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 24,
-        maxWidth: 920, margin: "0 auto 22px" }}>
+        maxWidth: 920, margin: "80px auto 22px" }}>
         <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" />
-        <Combatant name="Fire Imp · Fl.12" hp={monsterHP} max={120} color={C.inkRed} align="right" />
+        <Combatant name={`${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={120} color={C.inkRed} align="right" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 26,
@@ -462,7 +485,7 @@ function BattleScreen({ go }) {
 
           <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, textAlign: "center",
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim, letterSpacing: 1, zIndex: 10 }}>
-            FLOOR 12 — FIRE IMP
+            FLOOR {currentFloor} — {floorData.name.toUpperCase()}
           </div>
         </div>
 
@@ -508,15 +531,22 @@ function BattleScreen({ go }) {
               color: conf >= 0.8 ? C.bgDeep : C.ashDim,
               background: conf >= 0.8 ? C.gestureOk : "#ffffff10",
             }}>✓ Land Sign</button>
-            <button onClick={takeHit} style={{
+            <button onClick={landMiss} style={{
               flex: 1, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
               padding: "11px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
               border: `1px solid ${C.gestureBad}`, color: C.gestureBad, background: "transparent",
-            }}>✕ Miss</button>
+            }}>✕ Miss (Fail)</button>
           </div>
 
-          {monsterHP === 0 && <ResultBtn win onClick={() => go("map")} />}
-          {playerHP === 0 && <ResultBtn onClick={() => go("burn")} />}
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: -100, display: "flex", justifyContent: "center" }}>
+            {monsterHP === 0 && <ResultBtn win onClick={() => {
+              clearFloor(currentFloor);
+              const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
+              setCurrentFloor(nextF);
+              go("map");
+            }} />}
+            {playerHP === 0 && <ResultBtn win={false} onClick={() => go("map")} />}
+          </div>
         </div>
       </div>
     </Stage>

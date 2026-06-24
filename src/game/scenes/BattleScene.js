@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import useGameStore from '@/store/gameStore';
+import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
 
 // Toggle this to TRUE when the 2D Artist delivers the .png and .json files
 const USE_SPRITESHEET = false;
@@ -22,6 +22,9 @@ export default class BattleScene extends Phaser.Scene {
     } else {
       // Prototype Static Images
       this.load.image('samurai', '/assets/sprites/samurai.png');
+      this.load.image('slime', '/assets/sprites/slime.png');
+      this.load.image('skeleton', '/assets/sprites/skeleton.png');
+      this.load.image('bat', '/assets/sprites/bat.png');
       this.load.image('imp', '/assets/sprites/imp.png');
     }
   }
@@ -44,10 +47,14 @@ export default class BattleScene extends Phaser.Scene {
     if (USE_SPRITESHEET) {
       this.setupAnimations();
       
+      const currentFloor = useGameStore.getState().currentFloor;
+      const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
+      
       this.playerSprite = this.add.sprite(w * 0.2, groundY, 'samurai').setOrigin(0.5, 1);
       this.playerSprite.play('samurai_idle');
       
       this.monsterSprite = this.add.sprite(w * 0.8, groundY, 'imp').setOrigin(0.5, 1);
+      this.monsterSprite.setTint(floorData.color);
       this.monsterSprite.play('imp_idle');
     } else {
       // --- Samurai AI Sprite (Prototype) ---
@@ -55,10 +62,22 @@ export default class BattleScene extends Phaser.Scene {
         .setOrigin(0.5, 1)
         .setScale(0.32);
       
-      // --- Fire Imp AI Sprite (Prototype) ---
-      this.monsterSprite = this.add.image(w * 0.8, groundY + 28, 'imp')
+      const currentFloor = useGameStore.getState().currentFloor;
+      const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
+
+      let monsterKey = 'imp';
+      if (floorData.z === 'Z1') monsterKey = 'slime';
+      else if (floorData.z === 'Z2') monsterKey = 'skeleton';
+      else if (floorData.z === 'Z3') monsterKey = 'bat';
+      else if (floorData.z === 'Z4') monsterKey = 'imp';
+
+      // --- Monster AI Sprite (Prototype) ---
+      this.monsterSprite = this.add.image(w * 0.8, groundY + 28, monsterKey)
         .setOrigin(0.5, 1)
-        .setScale(0.3);
+        .setScale(0.32);
+      if (currentFloor !== 6 && currentFloor !== 4) {
+        this.monsterSprite.setTint(floorData.color);
+      }
     }
 
     // --- Procedural Idle Animations (Breathing) ---
@@ -104,6 +123,9 @@ export default class BattleScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       if (this.unsubscribe) this.unsubscribe();
     });
+    this.sys.game.events.once('destroy', () => {
+      if (this.unsubscribe) this.unsubscribe();
+    });
   }
 
   setupAnimations() {
@@ -143,9 +165,9 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   playPlayerAttack() {
-    if (!this.sys || !this.sound) return; // Prevent crashes if scene is destroyed during fast refresh
-    
-    this.sound.play('sfx_hit', { volume: 0.5 });
+    try {
+      if (!this.sys || !this.sys.game || !this.scene.isActive()) return;
+      this.sound.play('sfx_hit', { volume: 0.5 });
     
     if (USE_SPRITESHEET) {
       this.playerSprite.play('samurai_attack');
@@ -193,15 +215,21 @@ export default class BattleScene extends Phaser.Scene {
         alpha: { from: 1, to: 0 },
         duration: 250,
         ease: 'Cubic.easeOut',
-        onComplete: () => slash.destroy()
+        onComplete: () => {
+          slash.destroy();
+          this.cameras.main.shake(150, 0.01);
+        }
       });
     });
+    } catch (e) {
+      // Ignore errors from destroyed scenes during Fast Refresh
+    }
   }
 
   playMonsterAttack() {
-    if (!this.sys || !this.sound) return; // Prevent crashes if scene is destroyed during fast refresh
-    
-    this.sound.play('sfx_miss', { volume: 0.5 });
+    try {
+      if (!this.sys || !this.sys.game || !this.scene.isActive()) return;
+      this.sound.play('sfx_miss', { volume: 0.5 });
     
     if (USE_SPRITESHEET) {
       this.monsterSprite.play('imp_attack');
@@ -254,6 +282,9 @@ export default class BattleScene extends Phaser.Scene {
       // Screen Shake
       this.cameras.main.shake(150, 0.01);
     });
+    } catch (e) {
+      // Ignore errors from destroyed scenes during Fast Refresh
+    }
   }
 
   destroy() {
