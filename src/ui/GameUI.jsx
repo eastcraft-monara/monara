@@ -267,7 +267,8 @@ function BattleScreen({ go }) {
   const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
-  const maxMonsterHP = 100 + ((currentFloor - 1) * 15);
+  const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
+  const monsterDamage = 20 + ((currentFloor - 1) * 5); // scales up to 55 on floor 8
 
   const [playerHP, setPlayerHP] = useState(100);
   const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
@@ -276,7 +277,7 @@ function BattleScreen({ go }) {
   const [conf, setConf] = useState(0.46);
   const isProcessingRef = useRef(false); // <--- Prevent duplicate rapid attacks
   const holdCountRef = useRef(0); // <--- Require holding the sign briefly
-  const [timer, setTimer] = useState(15);
+  const [timer, setTimer] = useState(10);
   const [feed, setFeed] = useState("tracking"); // tracking | ok | bad
   const [shake, setShake] = useState(false);
   const [pPose, setPPose] = useState("idle"); // idle | attack | hurt
@@ -301,7 +302,7 @@ function BattleScreen({ go }) {
   useEffect(() => {
     if (timer === 0 && playerHP > 0 && monsterHP > 0) {
       takeHit();
-      setTimer(15);
+      setTimer(10);
     }
   }, [timer]);
 
@@ -374,7 +375,7 @@ function BattleScreen({ go }) {
     });
     
     setSpellIdx(0);
-    setTimer(15);
+    setTimer(10);
     setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
     setFx({ side: "enemy", txt: "-28" });
@@ -384,16 +385,18 @@ function BattleScreen({ go }) {
   };
   const takeHit = () => {
     triggerAction('monster_attack');
-    setPlayerHP((h) => Math.max(0, h - 15));
+    setPlayerHP((h) => Math.max(0, h - monsterDamage));
+    setTimer(10);
+    setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
-    setFx({ side: "player", txt: "-15" });
+    setFx({ side: "player", txt: `-${monsterDamage}` });
     setEPose("lunge");
     setPPose("knock");
     setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
   };
   const landMiss = () => {
       takeHit();
-      setTimer(8);
+      setTimer(10);
   };
 
   return (
@@ -490,37 +493,48 @@ function BattleScreen({ go }) {
             <MeterRow label="Confidence" pct={Math.round(conf * 100)}
               color={conf >= 0.8 ? C.gestureOk : C.inkGold} />
             <div style={{ height: 10 }} />
-            <MeterRow label="Timer" pct={(timer / 8) * 100}
+            <MeterRow label="Timer" pct={(timer / 10) * 100}
               color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
-          </div>
-
-          {/* demo controls */}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={landHit} disabled={conf < 0.8} style={{
-              flex: 1, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
-              padding: "11px", borderRadius: 3, cursor: conf >= 0.8 ? "pointer" : "not-allowed",
-              border: "none", fontWeight: 600, letterSpacing: .5,
-              color: conf >= 0.8 ? C.bgDeep : C.ashDim,
-              background: conf >= 0.8 ? C.gestureOk : "#ffffff10",
-            }}>✓ Land Sign</button>
-            <button onClick={landMiss} style={{
-              flex: 1, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
-              padding: "11px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
-              border: `1px solid ${C.gestureBad}`, color: C.gestureBad, background: "transparent",
-            }}>✕ Miss (Fail)</button>
-          </div>
-
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: -100, display: "flex", justifyContent: "center" }}>
-            {monsterHP === 0 && <ResultBtn win onClick={() => {
-              clearFloor(currentFloor);
-              const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
-              setCurrentFloor(nextF);
-              go("map");
-            }} />}
-            {playerHP === 0 && <ResultBtn win={false} onClick={() => go("map")} />}
           </div>
         </div>
       </div>
+
+      {/* Victory / Defeat Modal */}
+      {(monsterHP === 0 || playerHP === 0) && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(10, 6, 8, 0.9)", zIndex: 9999,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          animation: "inkWipe 0.5s ease-out forwards"
+        }}>
+          <h1 style={{
+            fontFamily: "'Cinzel', serif", fontSize: 80, fontWeight: 900,
+            color: monsterHP === 0 ? C.inkGold : C.gestureBad,
+            textShadow: `0 0 60px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
+            marginBottom: 20, letterSpacing: 8,
+            animation: monsterHP === 0 ? "float 3s ease-in-out infinite" : "none"
+          }}>
+            {monsterHP === 0 ? "VICTORY" : "DEFEAT"}
+          </h1>
+          
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: C.ash, marginBottom: 40,
+            textAlign: "center", maxWidth: 400
+          }}>
+            {monsterHP === 0 
+              ? `You have cleansed Floor ${currentFloor} of its corruption.`
+              : `You have fallen on Floor ${currentFloor}. Dust yourself off and try again.`}
+          </div>
+
+          {monsterHP === 0 && <ResultBtn win onClick={() => {
+            clearFloor(currentFloor);
+            const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
+            setCurrentFloor(nextF);
+            go("map");
+          }} />}
+          {playerHP === 0 && <ResultBtn win={false} onClick={() => go("map")} />}
+        </div>
+      )}
     </Stage>
   );
 }
