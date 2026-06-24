@@ -1,0 +1,969 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import useGameStore from '@/store/gameStore';
+
+// ============================================================
+// EASTCRAFT MONARA — Game UI
+// Sign to Fight. Climb the Monara.
+// ============================================================
+
+const C = {
+  bgDeep: "#0D0A0E",
+  bgPanel: "#1A1520",
+  bgPanel2: "#231C2B",
+  inkRed: "#C8334A",
+  inkGold: "#D4A853",
+  ash: "#E8E2D9",
+  ashDim: "#8A8178",
+  gestureOk: "#4CAF82",
+  gestureBad: "#E05252",
+  burn: "#E87A2A",
+  aura: "#4A6FD4",
+};
+
+const FONTS = `
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif:ital,wght@0,400;0,600;1,400&display=swap');
+`;
+
+// ---- shared atoms -------------------------------------------------
+
+function Bar({ value, max, color, bg = "#000", height = 14, glow }) {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  return (
+    <div style={{
+      width: "100%", height, background: bg,
+      border: `1px solid ${color}55`, borderRadius: 2, overflow: "hidden",
+      position: "relative",
+    }}>
+      <div style={{
+        width: `${pct}%`, height: "100%", background: color,
+        transition: "width .4s cubic-bezier(.4,0,.2,1)",
+        boxShadow: glow ? `0 0 10px ${color}` : "none",
+      }} />
+    </div>
+  );
+}
+
+function TierBadge({ tier }) {
+  const map = {
+    Peasant: { c: C.ashDim, m: "1x" },
+    Warrior: { c: C.gestureOk, m: "1.5x" },
+    Samurai: { c: C.inkGold, m: "2x" },
+    Shogun: { c: C.inkRed, m: "3x" },
+  };
+  const t = map[tier] || map.Peasant;
+  return (
+    <span style={{
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+      letterSpacing: 1, textTransform: "uppercase",
+      color: t.c, border: `1px solid ${t.c}`, padding: "3px 8px",
+      borderRadius: 2, display: "inline-flex", gap: 6, alignItems: "center",
+    }}>
+      {tier} <span style={{ opacity: .6 }}>·</span> {t.m}
+    </span>
+  );
+}
+
+// Simulated webcam panel with animated hand landmarks
+function WebcamPanel({ status }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const cvs = canvasRef.current;
+    if (!cvs) return;
+    const ctx = cvs.getContext("2d");
+    let raf, t = 0;
+    // 21 landmark base positions (rough hand shape)
+    const base = [
+      [0.5, 0.85], [0.42, 0.78], [0.36, 0.68], [0.32, 0.6], [0.29, 0.53],
+      [0.46, 0.55], [0.44, 0.42], [0.43, 0.33], [0.42, 0.26],
+      [0.53, 0.54], [0.53, 0.39], [0.53, 0.29], [0.53, 0.21],
+      [0.6, 0.56], [0.62, 0.42], [0.63, 0.33], [0.64, 0.26],
+      [0.67, 0.6], [0.7, 0.5], [0.72, 0.43], [0.73, 0.37],
+    ];
+    const links = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+      [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
+      [13,17],[17,18],[18,19],[19,20],[0,17]];
+    const draw = () => {
+      t += 0.05;
+      const W = cvs.width, H = cvs.height;
+      ctx.clearRect(0, 0, W, H);
+      // dark vignette feed
+      const g = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, W*0.7);
+      g.addColorStop(0, "#241c1a"); g.addColorStop(1, "#0c0908");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // scanline shimmer
+      ctx.fillStyle = "rgba(255,255,255,0.015)";
+      for (let y = (t*8 % 4); y < H; y += 4) ctx.fillRect(0, y, W, 1);
+      const col = status === "ok" ? C.gestureOk : status === "bad" ? C.gestureBad : C.inkGold;
+      const pts = base.map(([x, y], i) => [
+        (x + Math.sin(t + i) * 0.006) * W,
+        (y + Math.cos(t * 0.8 + i) * 0.006) * H,
+      ]);
+      ctx.strokeStyle = col + "cc"; ctx.lineWidth = 2;
+      links.forEach(([a, b]) => {
+        ctx.beginPath(); ctx.moveTo(pts[a][0], pts[a][1]);
+        ctx.lineTo(pts[b][0], pts[b][1]); ctx.stroke();
+      });
+      pts.forEach(([x, y], i) => {
+        ctx.beginPath(); ctx.arc(x, y, i === 0 ? 4 : 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = col; ctx.shadowBlur = 8; ctx.shadowColor = col;
+        ctx.fill(); ctx.shadowBlur = 0;
+      });
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    
+    // MOCK GESTURE ENGINE
+    const handleKeyDown = (e) => {
+      const key = e.key.toUpperCase();
+      if (/^[A-Z0-9 ]$/.test(key)) {
+        let predicted = key;
+        if (key === ' ') {
+          predicted = useGameStore.getState().targetSign || "FIRE"; // Auto-predict
+        }
+        if (predicted) {
+          useGameStore.getState().setGesturePrediction({ char: predicted, confidence: 0.95, timestamp: Date.now() });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [status]);
+  const label = status === "ok" ? "SIGN LOCKED" : status === "bad" ? "NO MATCH" : "TRACKING";
+  const lc = status === "ok" ? C.gestureOk : status === "bad" ? C.gestureBad : C.inkGold;
+  return (
+    <div style={{ position: "relative", borderRadius: 4, overflow: "hidden",
+      border: `1px solid ${lc}66`, boxShadow: `0 0 24px ${lc}22` }}>
+      <canvas ref={canvasRef} width={300} height={225} style={{ display: "block", width: "100%" }} />
+      <div style={{ position: "absolute", top: 8, left: 8,
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5,
+        color: lc, background: "#000a", padding: "2px 7px", borderRadius: 2 }}>
+        ● {label}
+      </div>
+      <div style={{ position: "absolute", bottom: 8, left: 8, right: 8,
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#4CAF82", background: "#000a", padding: "2px 7px", borderRadius: 2, textAlign: "center" }}>
+        Mock Mode: Press SPACE for words
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SCREEN 1 — WALLET GATE
+// ============================================================
+function GateScreen({ go }) {
+  const { connected, publicKey } = useWallet();
+  const [mounted, setMounted] = useState(false);
+  const { setWalletStatus } = useGameStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleEnterMonara = () => {
+    setWalletStatus(true, true, publicKey?.toString());
+    go("map");
+  };
+
+  return (
+    <Stage>
+      <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
+        <TowerGlyph size={110} />
+        <div>
+          <h1 style={{
+            fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 46,
+            color: C.ash, margin: 0, letterSpacing: 2, lineHeight: 1,
+          }}>EASTCRAFT<br /><span style={{ color: C.inkRed }}>MONARA</span></h1>
+          <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic",
+            color: C.ashDim, marginTop: 14, fontSize: 15 }}>
+            Sign to Fight. Climb the Monara.
+          </p>
+        </div>
+
+        {!connected || !mounted ? (
+          <>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
+              color: C.ashDim, lineHeight: 1.9, maxWidth: 380 }}>
+              A token-gated ASL battle realm. Hold <span style={{ color: C.inkGold }}>$MONARA</span> to
+              enter. Win to earn. Lose, and your coin burns to ash.
+            </div>
+            {mounted && <WalletMultiButton className="!bg-[#D4A853] !text-black hover:!bg-yellow-600 transition-colors !rounded-sm !font-mono !text-sm !px-8" />}
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5,
+              color: C.ashDim, opacity: .6 }}>Phantom · Backpack · Solflare</div>
+          </>
+        ) : (
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
+            <Panel>
+              <Row label="Wallet" value={`${publicKey?.toString().slice(0, 4)}...${publicKey?.toString().slice(-4)}`} mono />
+              <Row label="$MONARA Held" value="52,400 (Mock)" mono gold />
+              <Row label="Access Tier" value={<TierBadge tier="Samurai" />} />
+              <Row label="Status" value={<span style={{ color: C.gestureOk }}>● Verified on-chain</span>} mono />
+            </Panel>
+            <RedBtn onClick={handleEnterMonara}>Enter the Monara (Dummy) →</RedBtn>
+          </div>
+        )}
+
+        <LockNote />
+      </div>
+    </Stage>
+  );
+}
+
+function LockNote() {
+  return (
+    <div style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace",
+      fontSize: 10.5, color: C.ashDim, opacity: .55, maxWidth: 360, lineHeight: 1.7 }}>
+      Sell your $MONARA mid-session and the gate closes behind you. Balance is
+      watched on-chain every 60 seconds.
+    </div>
+  );
+}
+
+// ============================================================
+// SCREEN 2 — MONARA TOWER MAP
+// ============================================================
+function MapScreen({ go }) {
+  const floors = [
+    { n: 40, z: "Z4", name: "The Guardian", boss: true, locked: true },
+    { n: 32, z: "Z4", name: "Phrase Halls", locked: true },
+    { n: 24, z: "Z3", name: "Shadow Oni", locked: true },
+    { n: 18, z: "Z3", name: "Vocab Sanctum", locked: false },
+    { n: 12, z: "Z2", name: "Fire Imp", locked: false, current: true },
+    { n: 8, z: "Z2", name: "Number Gate", cleared: true },
+    { n: 4, z: "Z1", name: "Skeleton", cleared: true },
+    { n: 1, z: "Z1", name: "Alphabet Foot", cleared: true },
+  ];
+  return (
+    <Stage>
+      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 30,
+        maxWidth: 900, margin: "30px auto 0", alignItems: "start" }}>
+        {/* tower column */}
+        <div>
+          <Eyebrow>The Ascent · 40 Floors</Eyebrow>
+          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30,
+            color: C.ash, margin: "6px 0 22px" }}>Monara Tower</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {floors.map((f) => (
+              <FloorRow key={f.n} f={f} onFight={() => go("battle")} />
+            ))}
+          </div>
+        </div>
+        {/* side intel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 20 }}>
+          <Panel>
+            <Eyebrow>Run Stats</Eyebrow>
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 11 }}>
+              <Row label="Floors Cleared" value="11 / 40" mono />
+              <Row label="Total Earned" value="+8,250" mono gold />
+              <Row label="Total Burned" value="−1,940" mono burn />
+              <Row label="Win Rate" value="73%" mono />
+            </div>
+          </Panel>
+          <Panel accent={C.inkRed}>
+            <Eyebrow color={C.inkRed}>Open Challenge</Eyebrow>
+            <p style={{ fontFamily: "'Noto Serif', serif", fontSize: 13,
+              color: C.ash, margin: "10px 0 14px", lineHeight: 1.6 }}>
+              Drop a bet in the community. Highest ASL accuracy over the round takes the pot.
+            </p>
+            <RedBtn small onClick={() => go("pvp")}>Create PvP Bet →</RedBtn>
+          </Panel>
+        </div>
+      </div>
+    </Stage>
+  );
+}
+
+function FloorRow({ f, onFight }) {
+  const state = f.cleared ? "cleared" : f.current ? "current" : f.locked ? "locked" : "open";
+  const accent = f.boss ? C.inkRed : f.current ? C.inkGold : C.ashDim;
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "54px 1fr auto", alignItems: "center",
+      gap: 14, padding: "12px 16px", borderRadius: 4,
+      background: f.current ? `${C.inkGold}10` : C.bgPanel,
+      border: `1px solid ${f.current ? C.inkGold + "55" : f.boss ? C.inkRed + "44" : "#ffffff10"}`,
+      opacity: state === "locked" ? .42 : 1,
+    }}>
+      <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 22,
+        color: accent, textAlign: "center" }}>
+        {String(f.n).padStart(2, "0")}
+      </div>
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+          letterSpacing: 1.5, color: C.ashDim }}>{f.z}{f.boss ? " · BOSS" : ""}</div>
+        <div style={{ fontFamily: "'Noto Serif', serif", fontSize: 16, color: C.ash }}>{f.name}</div>
+      </div>
+      <div>
+        {state === "cleared" && <Tag c={C.gestureOk}>✓ Cleared</Tag>}
+        {state === "locked" && <Tag c={C.ashDim}>Locked</Tag>}
+        {(state === "current" || state === "open") && (
+          <button onClick={onFight} style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, letterSpacing: 1,
+            color: C.bgDeep, background: f.boss ? C.inkRed : C.inkGold, border: "none",
+            padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
+            textTransform: "uppercase",
+          }}>{f.boss ? "Challenge" : "Fight"}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SCREEN 3 — BATTLE (hero screen)
+// ============================================================
+const SIGNS = [
+  { word: "FIRE", letters: ["F", "I", "R", "E"] },
+  { word: "WATER", letters: ["W", "A", "T", "E", "R"] },
+  { word: "SWORD", letters: ["S", "W", "O", "R", "D"] },
+];
+
+function BattleScreen({ go }) {
+  const [playerHP, setPlayerHP] = useState(80);
+  const [monsterHP, setMonsterHP] = useState(120);
+  const [signIdx, setSignIdx] = useState(0);
+  const [conf, setConf] = useState(0.46);
+  const [timer, setTimer] = useState(8);
+  const [feed, setFeed] = useState("tracking"); // tracking | ok | bad
+  const [shake, setShake] = useState(false);
+  const [pPose, setPPose] = useState("idle"); // idle | attack | hurt
+  const [ePose, setEPose] = useState("idle");
+  const [fx, setFx] = useState(null); // {side, txt}
+
+  const { latestPrediction, setTargetSign } = useGameStore();
+
+  // confidence creep + timer
+  useEffect(() => {
+    const id = setInterval(() => {
+      // Slow down random creep, rely on mock engine
+      setConf((c) => Math.min(0.79, c + Math.random() * 0.02));
+      setTimer((t) => {
+        const newT = +(t - 0.1).toFixed(1);
+        if (newT <= 0 && playerHP > 0 && monsterHP > 0) {
+          takeHit();
+          return 8;
+        }
+        return newT > 0 ? newT : 0;
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [signIdx, playerHP, monsterHP]);
+
+  useEffect(() => {
+    if (conf >= 0.8) setFeed("ok");
+    else setFeed("tracking");
+  }, [conf]);
+
+  const sign = SIGNS[signIdx];
+
+  // Sync target sign to store for mock engine
+  useEffect(() => {
+    setTargetSign(sign.word);
+  }, [sign.word, setTargetSign]);
+
+  // Listen for gesture predictions
+  useEffect(() => {
+    if (!latestPrediction) return;
+    if (latestPrediction.char === sign.word && latestPrediction.confidence >= 0.8) {
+      setConf(latestPrediction.confidence);
+      // Add slight delay to let user see "SIGN LOCKED"
+      setTimeout(() => {
+        if (monsterHP > 0 && playerHP > 0) landHit();
+      }, 400);
+    }
+  }, [latestPrediction]);
+
+  const landHit = () => {
+    setMonsterHP((h) => Math.max(0, h - 28));
+    setSignIdx((i) => (i + 1) % SIGNS.length);
+    setPPose("attack"); setEPose("hurt"); setFx({ side: "enemy", txt: "−28" });
+    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 520);
+    setConf(0.4); setTimer(8); setFeed("tracking");
+  };
+  const takeHit = () => {
+    setFeed("bad"); setShake(true);
+    setPlayerHP((h) => Math.max(0, h - 18));
+    setEPose("attack"); setPPose("hurt"); setFx({ side: "player", txt: "−18" });
+    setTimeout(() => {
+      setShake(false); setConf(0.4); setTimer(8); setFeed("tracking");
+      setPPose("idle"); setEPose("idle"); setFx(null);
+    }, 600);
+  };
+
+  return (
+    <Stage battle>
+      {/* combatant HP rail */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24,
+        maxWidth: 920, margin: "0 auto 22px" }}>
+        <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" />
+        <Combatant name="Fire Imp · Fl.12" hp={monsterHP} max={120} color={C.inkRed} align="right" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 26,
+        maxWidth: 920, margin: "0 auto", alignItems: "start" }}>
+        {/* fighting arena — Tekken-style face off */}
+        <div style={{
+          position: "relative", minHeight: 340, borderRadius: 6,
+          background: `linear-gradient(180deg, #1a0f14 0%, ${C.bgPanel} 55%, #0a0608 100%)`,
+          border: "1px solid #ffffff10", overflow: "hidden",
+          animation: shake ? "shake .5s" : "none",
+        }}>
+          {/* atmosphere: distant pagoda silhouette + embers */}
+          <div style={{ position: "absolute", inset: 0, opacity: .5,
+            background: "repeating-linear-gradient(0deg,transparent,transparent 3px,#0002 3px,#0002 4px)" }} />
+          <PagodaBackdrop />
+          <Embers />
+
+          {/* ground line with perspective */}
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 64, height: 1,
+            background: `linear-gradient(90deg,transparent,${C.inkGold}44,transparent)` }} />
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 64,
+            background: `linear-gradient(180deg, ${C.inkGold}08, transparent)` }} />
+
+          {/* fighters */}
+          <div style={{ position: "absolute", left: "8%", bottom: 56, transformOrigin: "bottom center" }}>
+            <Fighter who="samurai" pose={pPose} />
+          </div>
+          <div style={{ position: "absolute", right: "8%", bottom: 56, transformOrigin: "bottom center" }}>
+            <Fighter who="imp" pose={ePose} />
+          </div>
+
+          {/* floating damage number */}
+          {fx && (
+            <div style={{
+              position: "absolute", bottom: 200,
+              left: fx.side === "enemy" ? "auto" : "16%",
+              right: fx.side === "enemy" ? "16%" : "auto",
+              fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 30,
+              color: fx.side === "enemy" ? C.inkGold : C.gestureBad,
+              textShadow: `0 0 16px ${fx.side === "enemy" ? C.inkGold : C.gestureBad}`,
+              animation: "dmgPop .55s ease-out forwards", pointerEvents: "none",
+            }}>{fx.txt}</div>
+          )}
+
+          <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, textAlign: "center",
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim, letterSpacing: 1 }}>
+            FLOOR 12 — FIRE IMP
+          </div>
+        </div>
+
+        {/* control column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <WebcamPanel status={feed} />
+
+          {/* challenge card */}
+          <div style={{
+            background: C.bgPanel, border: `1px solid ${C.inkGold}55`,
+            borderRadius: 6, padding: "16px 18px",
+            boxShadow: `0 6px 30px #0008`,
+          }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+              letterSpacing: 2, color: C.ashDim, marginBottom: 6 }}>PERFORM THE SIGN</div>
+            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 34,
+              color: C.inkGold, lineHeight: 1, marginBottom: 12 }}>{sign.word}</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              {sign.letters.map((l, i) => (
+                <span key={i} style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600,
+                  color: C.ash, width: 26, height: 30, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  border: "1px solid #ffffff22", borderRadius: 3, background: "#0004",
+                }}>{l}</span>
+              ))}
+            </div>
+
+            <MeterRow label="Confidence" pct={Math.round(conf * 100)}
+              color={conf >= 0.8 ? C.gestureOk : C.inkGold} />
+            <div style={{ height: 10 }} />
+            <MeterRow label="Timer" pct={(timer / 8) * 100}
+              color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+          </div>
+
+          {/* demo controls */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={landHit} disabled={conf < 0.8} style={{
+              flex: 1, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+              padding: "11px", borderRadius: 3, cursor: conf >= 0.8 ? "pointer" : "not-allowed",
+              border: "none", fontWeight: 600, letterSpacing: .5,
+              color: conf >= 0.8 ? C.bgDeep : C.ashDim,
+              background: conf >= 0.8 ? C.gestureOk : "#ffffff10",
+            }}>✓ Land Sign</button>
+            <button onClick={takeHit} style={{
+              flex: 1, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+              padding: "11px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
+              border: `1px solid ${C.gestureBad}`, color: C.gestureBad, background: "transparent",
+            }}>✕ Miss</button>
+          </div>
+
+          {monsterHP === 0 && <ResultBtn win onClick={() => go("map")} />}
+          {playerHP === 0 && <ResultBtn onClick={() => go("burn")} />}
+        </div>
+      </div>
+    </Stage>
+  );
+}
+
+function Combatant({ name, hp, max, color, align }) {
+  return (
+    <div style={{ flex: 1, textAlign: align }}>
+      <div style={{ display: "flex", justifyContent: align === "right" ? "flex-end" : "flex-start",
+        gap: 8, alignItems: "baseline", marginBottom: 6 }}>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+          color: C.ash, letterSpacing: .5 }}>{name}</span>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim }}>
+          {hp}/{max}
+        </span>
+      </div>
+      <div style={{ transform: align === "right" ? "scaleX(-1)" : "none" }}>
+        <Bar value={hp} max={max} color={color} glow height={12} />
+      </div>
+    </div>
+  );
+}
+
+function MeterRow({ label, pct, color, suffix }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5,
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim }}>
+        <span>{label}</span><span style={{ color }}>{suffix || pct + "%"}</span>
+      </div>
+      <Bar value={pct} max={100} color={color} height={9} />
+    </div>
+  );
+}
+
+// ============================================================
+// SCREEN 4 — PvP CHALLENGE
+// ============================================================
+function PvPScreen({ go }) {
+  const [bet, setBet] = useState(5000);
+  const [created, setCreated] = useState(false);
+  return (
+    <Stage>
+      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
+        <Eyebrow color={C.inkRed}>1v1 Wager</Eyebrow>
+        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30,
+          color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
+        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic", color: C.ashDim,
+          fontSize: 14, marginBottom: 26 }}>
+          Same rounds. Same signs. Highest accuracy wins 0.9% of the loser's bag. 0.1% turns to ash.
+        </p>
+
+        {!created ? (
+          <Panel>
+            <Eyebrow>Bet Amount · $MONARA</Eyebrow>
+            <div style={{ display: "flex", gap: 8, margin: "12px 0 6px", flexWrap: "wrap" }}>
+              {[1000, 5000, 25000, 100000].map((v) => (
+                <button key={v} onClick={() => setBet(v)} style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
+                  padding: "9px 14px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
+                  border: `1px solid ${bet === v ? C.inkGold : "#ffffff22"}`,
+                  background: bet === v ? `${C.inkGold}1a` : "transparent",
+                  color: bet === v ? C.inkGold : C.ash,
+                }}>{v.toLocaleString()}</button>
+              ))}
+            </div>
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
+              <Row label="Your stake" value={bet.toLocaleString() + " $MONARA"} mono gold />
+              <Row label="Challenger must match" value="Exact" mono />
+              <Row label="Zone" value="Z3 · Vocabulary" mono />
+              <Row label="Rounds" value="10" mono />
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <RedBtn onClick={() => setCreated(true)}>Lock Bet & Generate Link →</RedBtn>
+            </div>
+          </Panel>
+        ) : (
+          <Panel accent={C.inkGold}>
+            <Eyebrow color={C.inkGold}>Challenge Live</Eyebrow>
+            <p style={{ fontFamily: "'Noto Serif', serif", color: C.ash, fontSize: 14,
+              margin: "10px 0 16px", lineHeight: 1.6 }}>
+              Drop this link in the community. First to accept locks {bet.toLocaleString()} $MONARA in escrow.
+            </p>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
+              color: C.inkGold, background: "#000", padding: "12px 14px", borderRadius: 4,
+              border: `1px solid ${C.inkGold}44`, wordBreak: "break-all", marginBottom: 16 }}>
+              eastcraftmonara.gg/pvp/7xKp9Qm4-z3-{bet}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <GoldBtn small onClick={() => go("battle")}>Open Battle Room →</GoldBtn>
+              <button onClick={() => setCreated(false)} style={ghostBtn}>Cancel</button>
+            </div>
+          </Panel>
+        )}
+      </div>
+    </Stage>
+  );
+}
+
+// ============================================================
+// SCREEN 5 — BURN / DEFEAT
+// ============================================================
+function BurnScreen({ go }) {
+  const [emberDone, setEmberDone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setEmberDone(true), 1800); return () => clearTimeout(t); }, []);
+  return (
+    <Stage>
+      <div style={{ maxWidth: 460, margin: "30px auto 0", textAlign: "center",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+        <FlameGlyph />
+        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 38,
+          color: C.burn, margin: 0, letterSpacing: 2 }}>DEFEATED</h2>
+        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic",
+          color: C.ashDim, fontSize: 15, margin: 0 }}>
+          The Fire Imp held its ground. The tower takes its toll.
+        </p>
+
+        <Panel>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+            letterSpacing: 1.5, color: C.ashDim, marginBottom: 14 }}>
+            1% OF YOUR BAG · 52,400 $MONARA
+          </div>
+          <BurnLine label="Redistributed to winner" amount="−471.6" sub="0.9%" color={C.inkRed} />
+          <div style={{ height: 10 }} />
+          <BurnLine label="Burned forever" amount="−52.4" sub="0.1%" color={C.burn} ash={emberDone} />
+          <div style={{ height: 16, borderTop: "1px solid #ffffff12", margin: "14px 0 0", paddingTop: 14 }}>
+            <Row label="New balance" value="51,876 $MONARA" mono gold />
+            <div style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5,
+              color: C.ashDim, opacity: .7 }}>
+              burn tx: 4Qm…aF9 · logged on-chain {emberDone ? "✓" : "…"}
+            </div>
+          </div>
+        </Panel>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <RedBtn small onClick={() => go("battle")}>Rematch</RedBtn>
+          <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>
+        </div>
+      </div>
+    </Stage>
+  );
+}
+
+function BurnLine({ label, amount, sub, color, ash }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+      opacity: ash ? .45 : 1, transition: "opacity 1s" }}>
+      <span style={{ fontFamily: "'Noto Serif', serif", fontSize: 14, color: C.ash }}>
+        {label} <span style={{ color: C.ashDim, fontSize: 12 }}>· {sub}</span>
+      </span>
+      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600,
+        color, textShadow: `0 0 12px ${color}88` }}>{amount}</span>
+    </div>
+  );
+}
+
+// ============================================================
+// shared UI pieces
+// ============================================================
+function Stage({ children, battle }) {
+  return (
+    <div style={{
+      minHeight: 600, padding: "30px 26px 40px",
+      background: battle
+        ? `radial-gradient(circle at 50% 0%, #1a0f14, ${C.bgDeep} 70%)`
+        : `radial-gradient(circle at 50% -10%, #15101a, ${C.bgDeep} 65%)`,
+      position: "relative",
+    }}>
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: .03,
+        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Ccircle cx='1' cy='1' r='.5' fill='%23fff'/%3E%3C/svg%3E\")" }} />
+      <div style={{ position: "relative" }}>{children}</div>
+    </div>
+  );
+}
+
+function TopBar({ tier, balance, go }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+      paddingBottom: 16, borderBottom: "1px solid #ffffff12", maxWidth: 900, margin: "0 auto" }}>
+      <button onClick={() => go("map")} style={{ background: "none", border: "none",
+        cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+        <TowerGlyph size={26} />
+        <span style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+          color: C.ash, letterSpacing: 1 }}>MONARA</span>
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.inkGold }}>
+          {balance} $MONARA
+        </span>
+        <TierBadge tier={tier} />
+      </div>
+    </div>
+  );
+}
+
+function Panel({ children, accent }) {
+  return (
+    <div style={{ background: C.bgPanel, border: `1px solid ${accent ? accent + "55" : "#ffffff12"}`,
+      borderRadius: 6, padding: "18px 20px", textAlign: "left" }}>{children}</div>
+  );
+}
+
+function Row({ label, value, mono, gold, burn }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: C.ashDim }}>{label}</span>
+      <span style={{
+        fontFamily: mono ? "'IBM Plex Mono', monospace" : "'Noto Serif', serif",
+        fontSize: 13.5, color: gold ? C.inkGold : burn ? C.burn : C.ash, fontWeight: 500,
+      }}>{value}</span>
+    </div>
+  );
+}
+
+function Eyebrow({ children, color }) {
+  return <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5,
+    letterSpacing: 2.5, textTransform: "uppercase", color: color || C.ashDim }}>{children}</div>;
+}
+
+function Tag({ children, c }) {
+  return <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+    color: c, border: `1px solid ${c}55`, padding: "5px 10px", borderRadius: 3 }}>{children}</span>;
+}
+
+const ghostBtn = {
+  fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, padding: "11px 18px",
+  borderRadius: 3, cursor: "pointer", border: "1px solid #ffffff22",
+  background: "transparent", color: C.ashDim,
+};
+
+function GoldBtn({ children, onClick, small }) {
+  return <button onClick={onClick} style={{
+    fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, letterSpacing: .5,
+    fontSize: small ? 12.5 : 14, padding: small ? "11px 18px" : "14px 30px",
+    background: C.inkGold, color: C.bgDeep, border: "none", borderRadius: 3,
+    cursor: "pointer", boxShadow: `0 4px 20px ${C.inkGold}33`,
+  }}>{children}</button>;
+}
+function RedBtn({ children, onClick, small }) {
+  return <button onClick={onClick} style={{
+    fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, letterSpacing: .5,
+    fontSize: small ? 12.5 : 14, padding: small ? "11px 18px" : "14px 30px",
+    background: C.inkRed, color: C.ash, border: "none", borderRadius: 3,
+    cursor: "pointer", boxShadow: `0 4px 20px ${C.inkRed}44`, width: "100%",
+  }}>{children}</button>;
+}
+
+function ResultBtn({ win, onClick }) {
+  return <button onClick={onClick} style={{
+    width: "100%", fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+    padding: "14px", borderRadius: 4, cursor: "pointer", border: "none",
+    color: win ? C.bgDeep : C.ash, background: win ? C.gestureOk : C.burn,
+    letterSpacing: 1, marginTop: 4,
+  }}>{win ? "VICTORY — Claim Reward →" : "DEFEAT — See the Ash →"}</button>;
+}
+
+// ---- glyphs (inline SVG art) ----
+function TowerGlyph({ size = 100 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <g stroke={C.inkGold} strokeWidth="2" fill="none">
+        <path d="M50 8 L62 20 L38 20 Z" fill={C.inkRed} stroke={C.inkRed} />
+        <rect x="40" y="24" width="20" height="14" rx="1" />
+        <path d="M34 24 L66 24" strokeWidth="3" stroke={C.inkGold} />
+        <rect x="36" y="44" width="28" height="16" rx="1" />
+        <path d="M30 44 L70 44" strokeWidth="3" />
+        <rect x="32" y="66" width="36" height="20" rx="1" />
+        <path d="M26 66 L74 66" strokeWidth="3" />
+        <path d="M50 86 L50 92" />
+      </g>
+    </svg>
+  );
+}
+
+// ---- FIGHTERS (side-profile, face each other) ----
+function Fighter({ who, pose }) {
+  // samurai faces right (toward enemy), imp faces left (toward player)
+  const isPlayer = who === "samurai";
+  const anim =
+    pose === "attack" ? (isPlayer ? "lungeR .5s" : "lungeL .5s")
+    : pose === "hurt" ? (isPlayer ? "knockL .55s" : "knockR .55s")
+    : "bob 2.4s ease-in-out infinite";
+  return (
+    <div style={{ animation: anim, filter: pose === "hurt" ? "brightness(2)" : "none",
+      transition: "filter .1s" }}>
+      {isPlayer ? <Samurai /> : <FireImp />}
+      {/* shadow */}
+      <div style={{ width: 70, height: 10, margin: "2px auto 0", borderRadius: "50%",
+        background: "#000", opacity: .4, filter: "blur(4px)" }} />
+    </div>
+  );
+}
+
+// Samurai — chibi side profile facing RIGHT, blue aura
+function Samurai() {
+  return (
+    <svg width={96} height={150} viewBox="0 0 96 150">
+      <defs>
+        <radialGradient id="auraB" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={C.aura} stopOpacity=".4" />
+          <stop offset="100%" stopColor={C.aura} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="48" cy="80" rx="46" ry="64" fill="url(#auraB)" />
+      {/* back leg */}
+      <path d="M40 96 L33 134 L44 134 L48 100 Z" fill="#1c2230" />
+      {/* front leg */}
+      <path d="M52 98 L60 132 L70 132 L60 98 Z" fill="#262d3d" />
+      {/* kimono body */}
+      <path d="M36 58 Q34 90 40 100 L62 100 Q66 86 60 58 Z" fill="#2b3346" />
+      <path d="M48 60 L48 100" stroke={C.aura} strokeWidth="2" opacity=".7" />
+      {/* sash */}
+      <rect x="38" y="82" width="26" height="7" fill={C.inkRed} />
+      {/* sword arm extended toward enemy (right) */}
+      <path d="M58 66 L82 60" stroke="#d9d2c7" strokeWidth="5" strokeLinecap="round" />
+      <path d="M80 60 L96 56" stroke="#cfd6e0" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="58" cy="66" r="4" fill="#3a4252" />
+      {/* head profile */}
+      <circle cx="50" cy="44" r="13" fill="#e8c9a0" />
+      <path d="M62 42 Q66 44 62 47" fill="#e8c9a0" />{/* nose */}
+      {/* topknot */}
+      <circle cx="42" cy="32" r="6" fill="#16181f" />
+      <path d="M38 38 Q48 28 58 36 L56 44 Q48 36 40 44 Z" fill="#16181f" />
+      {/* eye */}
+      <circle cx="54" cy="43" r="1.7" fill="#1a1a1a" />
+      {/* headband */}
+      <path d="M37 40 L63 38" stroke={C.inkRed} strokeWidth="3" />
+    </svg>
+  );
+}
+
+// Fire Imp — chibi side profile facing LEFT, flames
+function FireImp() {
+  return (
+    <svg width={96} height={150} viewBox="0 0 96 150">
+      <defs>
+        <radialGradient id="auraR" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={C.burn} stopOpacity=".45" />
+          <stop offset="100%" stopColor={C.burn} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="48" cy="84" rx="44" ry="60" fill="url(#auraR)" />
+      {/* legs */}
+      <path d="M42 104 L34 132 L46 132 L50 106 Z" fill="#7a1f2a" />
+      <path d="M54 106 L62 132 L72 132 L62 104 Z" fill="#9a2533" />
+      {/* body */}
+      <ellipse cx="50" cy="84" rx="22" ry="24" fill={C.inkRed} />
+      <ellipse cx="50" cy="84" rx="22" ry="24" fill="none" stroke={C.burn} strokeWidth="1.5" />
+      <path d="M42 74 Q50 88 58 74" stroke={C.burn} strokeWidth="1.5" fill="none" opacity=".6" />
+      {/* claw arm reaching left toward player */}
+      <path d="M40 78 L20 72" stroke={C.inkRed} strokeWidth="6" strokeLinecap="round" />
+      <path d="M20 72 l-5 -3 M20 72 l-5 1 M20 72 l-4 4" stroke={C.burn} strokeWidth="2" strokeLinecap="round" />
+      {/* head */}
+      <circle cx="50" cy="50" r="15" fill={C.inkRed} />
+      <circle cx="50" cy="50" r="15" fill="none" stroke={C.burn} strokeWidth="1.5" />
+      {/* snout to left */}
+      <path d="M36 52 Q30 54 36 58 Z" fill={C.inkRed} />
+      {/* horns */}
+      <path d="M44 38 L40 26 L48 36 Z" fill="#3a0f16" />
+      <path d="M56 38 L60 26 L52 36 Z" fill="#3a0f16" />
+      {/* flame crown */}
+      <path d="M44 34 Q48 22 52 34 Q56 24 58 36" stroke={C.burn} strokeWidth="2.5" fill="none">
+        <animate attributeName="opacity" values="1;.5;1" dur="0.8s" repeatCount="indefinite" />
+      </path>
+      {/* glowing eye (faces left) */}
+      <circle cx="44" cy="49" r="3.4" fill={C.inkGold} />
+      <circle cx="44" cy="49" r="1.3" fill="#000" />
+      <path d="M38 44 L48 46" stroke="#3a0f16" strokeWidth="2" />{/* brow */}
+    </svg>
+  );
+}
+
+function PagodaBackdrop() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid slice"
+      style={{ position: "absolute", inset: 0, opacity: .12 }}>
+      <g stroke={C.inkGold} strokeWidth="2" fill="none">
+        <path d="M200 40 L230 70 L170 70 Z" />
+        <path d="M160 70 L240 70" strokeWidth="4" />
+        <rect x="178" y="78" width="44" height="34" />
+        <path d="M150 112 L250 112" strokeWidth="4" />
+        <rect x="170" y="120" width="60" height="46" />
+        <path d="M138 166 L262 166" strokeWidth="4" />
+        <rect x="162" y="174" width="76" height="60" />
+      </g>
+      <circle cx="320" cy="70" r="40" fill={C.inkRed} opacity=".15" />
+    </svg>
+  );
+}
+
+function Embers() {
+  const dots = Array.from({ length: 14 });
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      {dots.map((_, i) => (
+        <span key={i} style={{
+          position: "absolute", left: `${(i * 37) % 100}%`, bottom: -10,
+          width: 3, height: 3, borderRadius: "50%", background: C.burn,
+          boxShadow: `0 0 6px ${C.burn}`,
+          animation: `rise ${4 + (i % 5)}s linear ${i * 0.4}s infinite`,
+          opacity: .7,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function FlameGlyph() {
+  return (
+    <svg width={90} height={90} viewBox="0 0 100 100">
+      <path d="M50 12 C58 32 74 38 68 60 C66 76 56 86 50 86 C44 86 34 76 32 60 C26 38 42 32 50 12 Z"
+        fill={C.burn}>
+        <animate attributeName="opacity" values="1;.7;1" dur="1.2s" repeatCount="indefinite" />
+      </path>
+      <path d="M50 38 C54 48 62 52 58 64 C57 72 53 78 50 78 C47 78 43 72 42 64 C38 52 46 48 50 38 Z"
+        fill={C.inkGold} />
+    </svg>
+  );
+}
+
+// ============================================================
+// ROOT — screen navigator
+// ============================================================
+const SCREENS = [
+  ["gate", "Gate"], ["map", "Tower"], ["battle", "Battle"],
+  ["pvp", "PvP Bet"], ["burn", "Burn"],
+];
+
+export default function App() {
+  const [screen, setScreen] = useState("gate");
+  const go = setScreen;
+  return (
+    <div style={{ background: "#060406", minHeight: "100vh", fontSmooth: "antialiased" }}>
+
+      {/* demo screen switcher */}
+      <div style={{ position: "sticky", top: 0, zIndex: 50, display: "flex", gap: 6,
+        padding: "10px 14px", background: "#0a070a", borderBottom: "1px solid #ffffff10",
+        flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+          color: C.ashDim, letterSpacing: 1.5, marginRight: 6 }}>SCREENS</span>
+        {SCREENS.map(([k, label]) => (
+          <button key={k} onClick={() => setScreen(k)} style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, padding: "6px 13px",
+            borderRadius: 3, cursor: "pointer", border: "1px solid",
+            borderColor: screen === k ? C.inkGold : "#ffffff1a",
+            background: screen === k ? `${C.inkGold}1a` : "transparent",
+            color: screen === k ? C.inkGold : C.ashDim,
+          }}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+        {screen === "gate" && <GateScreen go={go} />}
+        {screen === "map" && <MapScreen go={go} />}
+        {screen === "battle" && <BattleScreen go={go} />}
+        {screen === "pvp" && <PvPScreen go={go} />}
+        {screen === "burn" && <BurnScreen go={go} />}
+      </div>
+    </div>
+  );
+}
