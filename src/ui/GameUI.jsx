@@ -5,6 +5,7 @@ const GameContainer = dynamic(() => import('@/ui/GameContainer'), { ssr: false }
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
+import WebcamPanel from '@/ui/WebcamPanel';
 
 // ============================================================
 // EASTCRAFT MONARA — Game UI
@@ -68,113 +69,7 @@ function TierBadge({ tier }) {
   );
 }
 
-// Simulated webcam panel with animated hand landmarks
-function WebcamPanel({ status, targetSign }) {
-  const canvasRef = useRef(null);
-  const [ghostKey, setGhostKey] = useState(0);
-
-  useEffect(() => {
-    setGhostKey(k => k + 1);
-  }, [targetSign]);
-
-  useEffect(() => {
-    const cvs = canvasRef.current;
-    if (!cvs) return;
-    const ctx = cvs.getContext("2d");
-    let raf, t = 0;
-    // 21 landmark base positions (rough hand shape)
-    const base = [
-      [0.5, 0.85], [0.42, 0.78], [0.36, 0.68], [0.32, 0.6], [0.29, 0.53],
-      [0.46, 0.55], [0.44, 0.42], [0.43, 0.33], [0.42, 0.26],
-      [0.53, 0.54], [0.53, 0.39], [0.53, 0.29], [0.53, 0.21],
-      [0.6, 0.56], [0.62, 0.42], [0.63, 0.33], [0.64, 0.26],
-      [0.67, 0.6], [0.7, 0.5], [0.72, 0.43], [0.73, 0.37],
-    ];
-    const links = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
-      [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
-      [13,17],[17,18],[18,19],[19,20],[0,17]];
-    const draw = () => {
-      t += 0.05;
-      const W = cvs.width, H = cvs.height;
-      ctx.clearRect(0, 0, W, H);
-      // dark vignette feed
-      const g = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, W*0.7);
-      g.addColorStop(0, "#241c1a"); g.addColorStop(1, "#0c0908");
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // scanline shimmer
-      ctx.fillStyle = "rgba(255,255,255,0.015)";
-      for (let y = (t*8 % 4); y < H; y += 4) ctx.fillRect(0, y, W, 1);
-      const col = status === "ok" ? C.gestureOk : status === "bad" ? C.gestureBad : C.inkGold;
-      const pts = base.map(([x, y], i) => [
-        (x + Math.sin(t + i) * 0.006) * W,
-        (y + Math.cos(t * 0.8 + i) * 0.006) * H,
-      ]);
-      ctx.strokeStyle = col + "cc"; ctx.lineWidth = 2;
-      links.forEach(([a, b]) => {
-        ctx.beginPath(); ctx.moveTo(pts[a][0], pts[a][1]);
-        ctx.lineTo(pts[b][0], pts[b][1]); ctx.stroke();
-      });
-      pts.forEach(([x, y], i) => {
-        ctx.beginPath(); ctx.arc(x, y, i === 0 ? 4 : 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = col; ctx.shadowBlur = 8; ctx.shadowColor = col;
-        ctx.fill(); ctx.shadowBlur = 0;
-      });
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    
-    // MOCK GESTURE ENGINE
-    const handleKeyDown = (e) => {
-      const key = e.key.toUpperCase();
-      if (/^[A-Z0-9 ]$/.test(key)) {
-        let predicted = key;
-        if (key === ' ') {
-          predicted = useGameStore.getState().targetSign || "FIRE"; // Auto-predict
-        }
-        if (predicted) {
-          useGameStore.getState().setGesturePrediction({ char: predicted, confidence: 0.95, timestamp: Date.now() });
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [status]);
-  const label = status === "ok" ? "SIGN LOCKED" : status === "bad" ? "NO MATCH" : "TRACKING";
-  const lc = status === "ok" ? C.gestureOk : status === "bad" ? C.gestureBad : C.inkGold;
-  return (
-    <div style={{ position: "relative", borderRadius: 4, overflow: "hidden",
-      border: `1px solid ${lc}66`, boxShadow: `0 0 24px ${lc}22` }}>
-      <canvas ref={canvasRef} width={300} height={225} style={{ display: "block", width: "100%" }} />
-      
-      {/* Ghost ASL Diagram Overlay */}
-      {targetSign && (
-        <div key={ghostKey} style={{
-          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'Cinzel', serif", fontSize: 130, fontWeight: 900, color: C.inkGold,
-          pointerEvents: "none", animation: "ghostFade 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-          textShadow: `0 0 20px ${C.inkGold}, 0 0 40px ${C.inkRed}`,
-          mixBlendMode: "screen", opacity: 0
-        }}>
-          {targetSign[0]}
-        </div>
-      )}
-
-      <div style={{ position: "absolute", top: 8, left: 8,
-        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5,
-        color: lc, background: "#000a", padding: "2px 7px", borderRadius: 2 }}>
-        ● {label}
-      </div>
-      <div style={{ position: "absolute", bottom: 8, left: 8, right: 8,
-        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#4CAF82", background: "#000a", padding: "2px 7px", borderRadius: 2, textAlign: "center" }}>
-        Mock Mode: Press SPACE for words
-      </div>
-    </div>
-  );
-}
+// The real WebcamPanel is now imported from '@/ui/WebcamPanel.jsx'
 
 // ============================================================
 // SCREEN 1 — WALLET GATE
@@ -349,42 +244,64 @@ function FloorRow({ f, onFight }) {
 // ============================================================
 // SCREEN 3 — BATTLE SCREEN
 // ============================================================
-const SIGNS = [
+const SINGLE_SIGNS = [
+  { word: "A", letters: ["A"] },
+  { word: "D", letters: ["D"] },
+  { word: "E", letters: ["E"] },
+  { word: "F", letters: ["F"] },
+  { word: "I", letters: ["I"] },
+  { word: "O", letters: ["O"] },
+  { word: "R", letters: ["R"] },
+  { word: "S", letters: ["S"] },
+  { word: "T", letters: ["T"] },
+  { word: "W", letters: ["W"] }
+];
+
+const WORD_SIGNS = [
   { word: "FIRE", letters: ["F", "I", "R", "E"] },
   { word: "WATER", letters: ["W", "A", "T", "E", "R"] },
   { word: "SWORD", letters: ["S", "W", "O", "R", "D"] },
 ];
 
 function BattleScreen({ go }) {
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor } = useGameStore();
+  const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
+  
+  const maxMonsterHP = 100 + ((currentFloor - 1) * 15);
+
   const [playerHP, setPlayerHP] = useState(100);
-  const [monsterHP, setMonsterHP] = useState(100);
-  const [signIdx, setSignIdx] = useState(0);
+  const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
+  const [signIdx, setSignIdx] = useState(() => Math.floor(Math.random() * 100)); // Start random
+  const [spellIdx, setSpellIdx] = useState(0);
   const [conf, setConf] = useState(0.46);
-  const [timer, setTimer] = useState(8);
+  const isProcessingRef = useRef(false); // <--- Prevent duplicate rapid attacks
+  const holdCountRef = useRef(0); // <--- Require holding the sign briefly
+  const [timer, setTimer] = useState(15);
   const [feed, setFeed] = useState("tracking"); // tracking | ok | bad
   const [shake, setShake] = useState(false);
   const [pPose, setPPose] = useState("idle"); // idle | attack | hurt
   const [ePose, setEPose] = useState("idle");
   const [fx, setFx] = useState(null); // {side, txt}
+  const [modelReady, setModelReady] = useState(false);
 
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor } = useGameStore();
-  const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
+  const activeSigns = currentFloor >= 8 ? WORD_SIGNS : SINGLE_SIGNS;
+  const sign = activeSigns[signIdx % activeSigns.length];
 
   // confidence creep + timer
   useEffect(() => {
+    if (!modelReady) return; // Pause timer until AI model is fully loaded
+
     const id = setInterval(() => {
-      // Slow down random creep, rely on mock engine
-      setConf((c) => Math.min(0.79, c + Math.random() * 0.02));
       setTimer((t) => (t > 0 ? +(t - 0.1).toFixed(1) : 0));
     }, 100);
     return () => clearInterval(id);
-  }, [signIdx]);
+  }, [signIdx, modelReady]);
 
   // Handle timeout
   useEffect(() => {
     if (timer === 0 && playerHP > 0 && monsterHP > 0) {
       takeHit();
-      setTimer(8);
+      setTimer(15);
     }
   }, [timer]);
 
@@ -393,30 +310,71 @@ function BattleScreen({ go }) {
     else setFeed("tracking");
   }, [conf]);
 
-  const sign = SIGNS[signIdx];
 
-  // Sync target sign to store for mock engine
+  // Sync target sign to store for AI/Mock engine (pass the specific letter we need)
+  const targetChar = sign.word[spellIdx];
+
   useEffect(() => {
-    setTargetSign(sign.word);
-  }, [sign.word, setTargetSign]);
+    setTargetSign(targetChar);
+  }, [targetChar, setTargetSign]);
 
   // Listen for gesture predictions
   useEffect(() => {
     if (!latestPrediction) return;
-    if (latestPrediction.char === sign.word && latestPrediction.confidence >= 0.8) {
-      setConf(latestPrediction.confidence);
-      // Add slight delay to let user see "SIGN LOCKED"
-      setTimeout(() => {
-        if (monsterHP > 0 && playerHP > 0) landHit();
-      }, 400);
+    if (isProcessingRef.current) return; // Skip if already processing a hit
+    
+    // Live update the confidence bar!
+    setConf(latestPrediction.confidence);
+
+    if (latestPrediction.char === targetChar && latestPrediction.confidence >= 0.8) {
+      holdCountRef.current += 1;
+      
+      // Require ~4 frames (approx 200-300ms) of sustained correct sign
+      if (holdCountRef.current >= 4) {
+        isProcessingRef.current = true; // Lock
+        holdCountRef.current = 0; // Reset
+        
+        // Add slight delay to let user see "SIGN LOCKED"
+        setTimeout(() => {
+          if (monsterHP > 0 && playerHP > 0) {
+            if (spellIdx + 1 >= sign.word.length) {
+              landHit();
+              // Unlock after attack animation finishes
+              setTimeout(() => { isProcessingRef.current = false; }, 1000); 
+            } else {
+              // Move to next letter in the word
+              setSpellIdx(s => s + 1);
+              setConf(0.46); // Reset conf for next letter
+              // Unlock quickly for the next letter
+              setTimeout(() => { isProcessingRef.current = false; }, 200);
+            }
+          } else {
+              isProcessingRef.current = false;
+          }
+        }, 400);
+      }
+    } else {
+      // If it drops below threshold or wrong sign, reset the hold counter
+      holdCountRef.current = 0;
     }
-  }, [latestPrediction]);
+  }, [latestPrediction, targetChar, spellIdx, monsterHP, playerHP]);
 
   const landHit = () => {
     triggerAction('player_attack');
     setMonsterHP((h) => Math.max(0, h - 28));
-    setSignIdx((i) => (i + 1) % SIGNS.length);
-    setTimer(8);
+    
+    // Pick next random sign, avoiding repeats
+    setSignIdx((prev) => {
+      let next;
+      const current = prev % activeSigns.length;
+      do {
+        next = Math.floor(Math.random() * activeSigns.length);
+      } while (next === current && activeSigns.length > 1);
+      return next;
+    });
+    
+    setSpellIdx(0);
+    setTimer(15);
     setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
     setFx({ side: "enemy", txt: "-28" });
@@ -455,7 +413,7 @@ function BattleScreen({ go }) {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 24,
         maxWidth: 920, margin: "80px auto 22px" }}>
         <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" />
-        <Combatant name={`${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={120} color={C.inkRed} align="right" />
+        <Combatant name={`${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 26,
@@ -491,7 +449,7 @@ function BattleScreen({ go }) {
 
         {/* control column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <WebcamPanel status={feed} targetSign={sign.word} />
+          <WebcamPanel status={feed} targetSign={targetChar} onModelReady={() => setModelReady(true)} />
 
           {/* challenge card */}
           <div key={sign.word} style={{
@@ -502,8 +460,22 @@ function BattleScreen({ go }) {
           }}>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
               letterSpacing: 2, color: C.ashDim, marginBottom: 6 }}>PERFORM THE SIGN</div>
-            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 34,
-              color: C.inkGold, lineHeight: 1, marginBottom: 12 }}>{sign.word}</div>
+              <div style={{
+                fontFamily: "'Cinzel', serif", fontSize: 42, fontWeight: 900,
+                color: C.inkGold, textShadow: `0 0 10px ${C.inkRed}`,
+                letterSpacing: 4
+              }}>
+                {/* Render word, highlight the current letter */}
+                {sign.word.split('').map((char, i) => (
+                  <span key={i} style={{ 
+                    color: i < spellIdx ? C.gestureOk : i === spellIdx ? C.inkGold : C.ashDim,
+                    textShadow: i === spellIdx ? `0 0 10px ${C.inkRed}` : 'none',
+                    opacity: i > spellIdx ? 0.5 : 1
+                  }}>
+                    {char}
+                  </span>
+                ))}
+              </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {sign.letters.map((l, i) => (
                 <span key={i} style={{
