@@ -1,207 +1,161 @@
 import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
-import { getSignsForZone } from '../systems/CurriculumManager';
-import { getRandomMonster } from '../systems/MonsterDB';
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
     super('BattleScene');
   }
 
-  init(data) {
-    this.zoneId = data.zoneId || 1;
-    this.vocab = getSignsForZone(this.zoneId);
+  preload() {
+    this.load.image('samurai', '/assets/sprites/samurai.png');
+    this.load.image('imp', '/assets/sprites/imp.png');
   }
 
   create() {
-    const { width, height } = this.scale;
+    this.cameras.main.setBackgroundColor('rgba(0,0,0,0)'); // Transparent so React BG shows through
+
+    const w = this.scale.width;
+    const h = this.scale.height;
     
-    // Background
-    this.add.rectangle(0, 0, width, height, 0x0D0A0E).setOrigin(0);
+    // Position on the ground line
+    const groundY = h - 64;
 
-    // Monster setup
-    this.monsterData = getRandomMonster(this.zoneId);
-    this.monsterMaxHp = this.monsterData.hp;
-    this.monsterHp = this.monsterMaxHp;
+    // --- Samurai AI Sprite ---
+    this.playerSprite = this.add.image(w * 0.2, groundY + 16, 'samurai')
+      .setOrigin(0.5, 1)
+      .setScale(0.32); // Transparent background via python script
+    
+    // --- Fire Imp AI Sprite ---
+    this.monsterSprite = this.add.image(w * 0.8, groundY + 28, 'imp')
+      .setOrigin(0.5, 1)
+      .setScale(0.3); // Transparent background via python script
 
-    // Player setup
-    this.playerMaxHp = 100;
-    this.playerHp = 100;
-
-    // UI Text
-    this.playerHpText = this.add.text(50, 40, 'Player HP', { font: '24px monospace', fill: '#4CAF82' });
-    this.monsterHpText = this.add.text(width - 350, 40, 'Monster HP', { font: '24px monospace', fill: '#E05252' });
-
-    // HP Bars Backgrounds
-    this.add.rectangle(50, 80, 300, 20, 0x333333).setOrigin(0);
-    this.add.rectangle(width - 350, 80, 300, 20, 0x333333).setOrigin(0);
-
-    // HP Bars Foreground
-    this.playerHpBar = this.add.rectangle(50, 80, 300, 20, 0x4CAF82).setOrigin(0);
-    this.monsterHpBar = this.add.rectangle(width - 350, 80, 300, 20, 0xE05252).setOrigin(0);
-
-    // Monster Sprite
-    this.monster = this.add.rectangle(width / 2, height / 2 - 50, 150, 150, this.monsterData.color);
-    this.add.text(width / 2, height / 2 - 50, this.monsterData.name, { font: '20px serif', fill: '#000' }).setOrigin(0.5);
-
-    // Timer for attack
-    this.timerText = this.add.text(width / 2, height / 2 + 100, '', { font: '28px monospace', fill: '#E8E2D9' }).setOrigin(0.5);
-    this.timeLimit = 12; // 12 seconds
-    this.timeLeft = this.timeLimit;
-
-    // Set initial target sign
-    this.generateNewTarget();
-
-    // Subscribe to Zustand store to listen for gesture predictions
-    let lastTimestamp = 0;
-    this.unsubscribeStore = useGameStore.subscribe((state) => {
-      if (state.latestPrediction && state.latestPrediction.timestamp > lastTimestamp) {
-        lastTimestamp = state.latestPrediction.timestamp;
-        this.handleGesture(state.latestPrediction);
-      }
+    // --- Procedural Idle Animations (Breathing) ---
+    this.tweens.add({
+      targets: this.playerSprite,
+      scaleY: 0.31, // squish down slightly
+      scaleX: 0.325, // stretch wide slightly
+      y: groundY + 18,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
     });
 
-    this.timeEvent = this.time.addEvent({
-      delay: 1000,
-      callback: this.tickTimer,
-      callbackScope: this,
-      loop: true
+    this.tweens.add({
+      targets: this.monsterSprite,
+      scaleY: 0.29,
+      scaleX: 0.31,
+      y: groundY + 32,
+      duration: 800, // Faster breathing for the imp
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
     });
 
-    // Cleanup on scene shutdown
-    this.events.on('shutdown', this.onDestroy, this);
-  }
-
-  generateNewTarget() {
-    const randomChar = this.vocab[Math.floor(Math.random() * this.vocab.length)];
-    useGameStore.getState().setTargetSign(randomChar);
-    this.timeLeft = 12; // reset timer
-    if (this.timerText) {
-      this.timerText.setText(`Time: ${this.timeLeft}s`);
-    }
-  }
-
-  tickTimer() {
-    this.timeLeft -= 1;
-    this.timerText.setText(`Time: ${this.timeLeft}s`);
-
-    if (this.timeLeft <= 0) {
-      // Timeout! Monster attacks
-      this.damagePlayer(20);
+    // Listen to Zustand store for actions
+    this.unsubscribe = useGameStore.subscribe((state, prevState) => {
+      const action = state.lastAction;
+      if (!action) return;
       
-      if (this.playerHp > 0) {
-        this.generateNewTarget();
-      }
-    }
-  }
-
-  handleGesture(prediction) {
-    if (!prediction) return;
-    
-    const target = useGameStore.getState().targetSign;
-    // We expect confidence >= 0.8
-    if (prediction.char === target && prediction.confidence >= 0.8) {
-      // Correct!
-      this.damageMonster(25);
+      // Ensure we only trigger when a NEW action comes in
+      if (prevState && prevState.lastAction && prevState.lastAction.timestamp === action.timestamp) return;
       
-      // Visual feedback
-      this.cameras.main.flash(200, 76, 175, 130); // Flash green
-
-      if (this.monsterHp > 0) {
-        this.generateNewTarget();
+      if (action.type === 'player_attack') {
+        this.playPlayerAttack();
+      } else if (action.type === 'monster_attack') {
+        this.playMonsterAttack();
       }
-    } else if (prediction.char !== target) {
-      // Flash red slightly for wrong sign
-      this.cameras.main.flash(100, 224, 82, 82);
-    }
+    });
   }
 
-  damageMonster(amount) {
-    this.monsterHp -= amount;
-    if (this.monsterHp <= 0) {
-      this.monsterHp = 0;
-      this.monsterHpText.setText(`Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`);
-      this.updateHpBars();
-      this.victory();
-    } else {
-      this.monsterHpText.setText(`Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`);
-      this.updateHpBars();
-      // Animate monster hit
+  playPlayerAttack() {
+    // 1. Player attacks (lunge right + lean forward to the enemy)
+    const originalX = this.playerSprite.x;
+    this.tweens.add({
+      targets: this.playerSprite,
+      x: this.monsterSprite.x - 100, // Dash all the way to the monster
+      angle: 30, // Lean forward dramatically
+      duration: 250,
+      yoyo: true,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.playerSprite.setAngle(0) // reset just in case
+    });
+
+    // 2. Slash VFX & Monster recoil
+    this.time.delayedCall(250, () => {
+      // Recoil
       this.tweens.add({
-        targets: this.monster,
-        x: this.monster.x + 20,
+        targets: this.monsterSprite,
+        x: this.monsterSprite.x + 40,
+        angle: 10,
+        duration: 100,
         yoyo: true,
-        duration: 50,
-        repeat: 3
+        onComplete: () => this.monsterSprite.setAngle(0)
       });
-    }
-  }
-
-  damagePlayer(amount) {
-    this.playerHp -= amount;
-    this.cameras.main.shake(200, 0.01); // Shake camera
-
-    if (this.playerHp <= 0) {
-      this.playerHp = 0;
-      this.playerHpText.setText(`Player HP: ${this.playerHp}/${this.playerMaxHp}`);
-      this.updateHpBars();
-      this.defeat();
-    } else {
-      this.playerHpText.setText(`Player HP: ${this.playerHp}/${this.playerMaxHp}`);
-      this.updateHpBars();
-    }
-  }
-
-  victory() {
-    if (this.timeEvent) this.timeEvent.remove();
-    this.add.text(this.scale.width / 2, this.scale.height / 2, 'VICTORY!', { font: '64px serif', fill: '#D4A853' }).setOrigin(0.5);
-    useGameStore.getState().setTargetSign(null);
-    
-    this.time.delayedCall(1500, () => {
-      this.scene.start('LevelUpScene', { zoneId: this.zoneId });
+      
+      // Cool Slash VFX (White-blue arc)
+      const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 10, 120, 0xAAFFFF);
+      slash.setAngle(45);
+      slash.setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: slash,
+        scaleX: 8,
+        scaleY: 1.5,
+        alpha: { from: 1, to: 0 },
+        duration: 250,
+        ease: 'Cubic.easeOut',
+        onComplete: () => slash.destroy()
+      });
     });
   }
 
-  defeat() {
-    if (this.timeEvent) this.timeEvent.remove();
-    this.add.text(this.scale.width / 2, this.scale.height / 2, 'DEFEATED...', { font: '64px serif', fill: '#E05252' }).setOrigin(0.5);
-    useGameStore.getState().setTargetSign(null);
-    
-    this.time.delayedCall(2000, () => {
-      useGameStore.getState().setScene('WorldMap');
-      this.scene.start('WorldMapScene');
-    });
-  }
-
-  updateHpBars() {
-    // Player HP Bar Tween
-    const playerHpPercent = Math.max(this.playerHp / this.playerMaxHp, 0);
+  playMonsterAttack() {
+    // 1. Monster attacks (lunge left + lean forward)
     this.tweens.add({
-      targets: this.playerHpBar,
-      width: 300 * playerHpPercent,
-      duration: 300,
-      ease: 'Power2'
+      targets: this.monsterSprite,
+      x: this.playerSprite.x + 100, // Dash all the way to the player
+      angle: -30, // Lean forward dramatically
+      duration: 250,
+      yoyo: true,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.monsterSprite.setAngle(0)
     });
 
-    // Monster HP Bar Tween
-    const monsterHpPercent = Math.max(this.monsterHp / this.monsterMaxHp, 0);
-    this.tweens.add({
-      targets: this.monsterHpBar,
-      width: 300 * monsterHpPercent,
-      duration: 300,
-      ease: 'Power2'
+    // 2. Claw VFX & Player recoil
+    this.time.delayedCall(250, () => {
+      // Recoil
+      this.tweens.add({
+        targets: this.playerSprite,
+        x: this.playerSprite.x - 40,
+        angle: -10,
+        duration: 100,
+        yoyo: true,
+        onComplete: () => this.playerSprite.setAngle(0)
+      });
+
+      // Red Claw/Scratch VFX
+      const scratch = this.add.ellipse(this.playerSprite.x, this.playerSprite.y - 60, 10, 100, 0xFF4444);
+      scratch.setAngle(-45);
+      scratch.setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: scratch,
+        scaleX: 6,
+        scaleY: 1.2,
+        alpha: { from: 1, to: 0 },
+        duration: 250,
+        ease: 'Cubic.easeOut',
+        onComplete: () => scratch.destroy()
+      });
+      
+      // Screen Shake
+      this.cameras.main.shake(150, 0.01);
     });
   }
 
-  onDestroy() {
-    if (this.unsubscribeStore) {
-      this.unsubscribeStore();
+  destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
     }
-    useGameStore.getState().setTargetSign(null);
-    this.timerText = null;
-    this.playerHpText = null;
-    this.monsterHpText = null;
-    this.playerHpBar = null;
-    this.monsterHpBar = null;
   }
 }

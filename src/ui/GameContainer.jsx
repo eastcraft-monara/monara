@@ -25,7 +25,7 @@ export default function GameContainer() {
   }, []);
 
   return (
-    <div id="game-container" className="w-full h-full border-4 border-[#1A1520] rounded-xl overflow-hidden shadow-2xl relative">
+    <div id="game-container" className="w-full h-full relative" style={{ minHeight: 340 }}>
       {/* Phaser Canvas will be injected here */}
     </div>
   );

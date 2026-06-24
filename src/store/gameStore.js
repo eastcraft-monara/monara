@@ -15,6 +15,7 @@ const useGameStore = create((set) => ({
   
   // Battle State
   targetSign: null, // e.g. "A" or "FIRE"
+  lastAction: null, // { type: 'player_attack' | 'monster_attack', timestamp: 1234 }
   
   // Actions
   setWalletStatus: (connected, access, address) => set({ 
@@ -25,6 +26,7 @@ const useGameStore = create((set) => ({
   setScene: (scene) => set({ currentScene: scene }),
   setTargetSign: (sign) => set({ targetSign: sign }),
   setGesturePrediction: (prediction) => set({ latestPrediction: prediction }),
+  triggerAction: (type) => set({ lastAction: { type, timestamp: Date.now() } }),
 }));
 
 export default useGameStore;

@@ -1,4 +1,7 @@
+'use client';
 import React, { useState, useEffect, useRef } from "react";
+import dynamic from 'next/dynamic';
+const GameContainer = dynamic(() => import('@/ui/GameContainer'), { ssr: false });
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import useGameStore from '@/store/gameStore';
@@ -337,24 +340,25 @@ function BattleScreen({ go }) {
   const [ePose, setEPose] = useState("idle");
   const [fx, setFx] = useState(null); // {side, txt}
 
-  const { latestPrediction, setTargetSign } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction } = useGameStore();
 
   // confidence creep + timer
   useEffect(() => {
     const id = setInterval(() => {
       // Slow down random creep, rely on mock engine
       setConf((c) => Math.min(0.79, c + Math.random() * 0.02));
-      setTimer((t) => {
-        const newT = +(t - 0.1).toFixed(1);
-        if (newT <= 0 && playerHP > 0 && monsterHP > 0) {
-          takeHit();
-          return 8;
-        }
-        return newT > 0 ? newT : 0;
-      });
+      setTimer((t) => (t > 0 ? +(t - 0.1).toFixed(1) : 0));
     }, 100);
     return () => clearInterval(id);
-  }, [signIdx, playerHP, monsterHP]);
+  }, [signIdx]);
+
+  // Handle timeout
+  useEffect(() => {
+    if (timer === 0 && playerHP > 0 && monsterHP > 0) {
+      takeHit();
+      setTimer(8);
+    }
+  }, [timer]);
 
   useEffect(() => {
     if (conf >= 0.8) setFeed("ok");
@@ -381,20 +385,25 @@ function BattleScreen({ go }) {
   }, [latestPrediction]);
 
   const landHit = () => {
+    triggerAction('player_attack');
     setMonsterHP((h) => Math.max(0, h - 28));
     setSignIdx((i) => (i + 1) % SIGNS.length);
-    setPPose("attack"); setEPose("hurt"); setFx({ side: "enemy", txt: "−28" });
-    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 520);
-    setConf(0.4); setTimer(8); setFeed("tracking");
+    setTimer(8);
+    setConf(0);
+    setShake(true); setTimeout(() => setShake(false), 500);
+    setFx({ side: "enemy", txt: "-28" });
+    setPPose("lunge");
+    setEPose("knock");
+    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
   };
   const takeHit = () => {
-    setFeed("bad"); setShake(true);
-    setPlayerHP((h) => Math.max(0, h - 18));
-    setEPose("attack"); setPPose("hurt"); setFx({ side: "player", txt: "−18" });
-    setTimeout(() => {
-      setShake(false); setConf(0.4); setTimer(8); setFeed("tracking");
-      setPPose("idle"); setEPose("idle"); setFx(null);
-    }, 600);
+    triggerAction('monster_attack');
+    setPlayerHP((h) => Math.max(0, h - 15));
+    setShake(true); setTimeout(() => setShake(false), 500);
+    setFx({ side: "player", txt: "-15" });
+    setEPose("lunge");
+    setPPose("knock");
+    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
   };
 
   return (
@@ -415,25 +424,8 @@ function BattleScreen({ go }) {
           border: "1px solid #ffffff10", overflow: "hidden",
           animation: shake ? "shake .5s" : "none",
         }}>
-          {/* atmosphere: distant pagoda silhouette + embers */}
-          <div style={{ position: "absolute", inset: 0, opacity: .5,
-            background: "repeating-linear-gradient(0deg,transparent,transparent 3px,#0002 3px,#0002 4px)" }} />
-          <PagodaBackdrop />
-          <Embers />
-
-          {/* ground line with perspective */}
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 64, height: 1,
-            background: `linear-gradient(90deg,transparent,${C.inkGold}44,transparent)` }} />
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 64,
-            background: `linear-gradient(180deg, ${C.inkGold}08, transparent)` }} />
-
-          {/* fighters */}
-          <div style={{ position: "absolute", left: "8%", bottom: 56, transformOrigin: "bottom center" }}>
-            <Fighter who="samurai" pose={pPose} />
-          </div>
-          <div style={{ position: "absolute", right: "8%", bottom: 56, transformOrigin: "bottom center" }}>
-            <Fighter who="imp" pose={ePose} />
-          </div>
+          {/* PHASER 3 INJECTION */}
+          <GameContainer />
 
           {/* floating damage number */}
           {fx && (
@@ -444,12 +436,12 @@ function BattleScreen({ go }) {
               fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 30,
               color: fx.side === "enemy" ? C.inkGold : C.gestureBad,
               textShadow: `0 0 16px ${fx.side === "enemy" ? C.inkGold : C.gestureBad}`,
-              animation: "dmgPop .55s ease-out forwards", pointerEvents: "none",
+              animation: "dmgPop .55s ease-out forwards", pointerEvents: "none", zIndex: 10,
             }}>{fx.txt}</div>
           )}
 
           <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, textAlign: "center",
-            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim, letterSpacing: 1 }}>
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim, letterSpacing: 1, zIndex: 10 }}>
             FLOOR 12 — FIRE IMP
           </div>
         </div>
