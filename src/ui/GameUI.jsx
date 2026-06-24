@@ -69,8 +69,14 @@ function TierBadge({ tier }) {
 }
 
 // Simulated webcam panel with animated hand landmarks
-function WebcamPanel({ status }) {
+function WebcamPanel({ status, targetSign }) {
   const canvasRef = useRef(null);
+  const [ghostKey, setGhostKey] = useState(0);
+
+  useEffect(() => {
+    setGhostKey(k => k + 1);
+  }, [targetSign]);
+
   useEffect(() => {
     const cvs = canvasRef.current;
     if (!cvs) return;
@@ -143,6 +149,20 @@ function WebcamPanel({ status }) {
     <div style={{ position: "relative", borderRadius: 4, overflow: "hidden",
       border: `1px solid ${lc}66`, boxShadow: `0 0 24px ${lc}22` }}>
       <canvas ref={canvasRef} width={300} height={225} style={{ display: "block", width: "100%" }} />
+      
+      {/* Ghost ASL Diagram Overlay */}
+      {targetSign && (
+        <div key={ghostKey} style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'Cinzel', serif", fontSize: 130, fontWeight: 900, color: C.inkGold,
+          pointerEvents: "none", animation: "ghostFade 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+          textShadow: `0 0 20px ${C.inkGold}, 0 0 40px ${C.inkRed}`,
+          mixBlendMode: "screen", opacity: 0
+        }}>
+          {targetSign[0]}
+        </div>
+      )}
+
       <div style={{ position: "absolute", top: 8, left: 8,
         fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 1.5,
         color: lc, background: "#000a", padding: "2px 7px", borderRadius: 2 }}>
@@ -448,13 +468,14 @@ function BattleScreen({ go }) {
 
         {/* control column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <WebcamPanel status={feed} />
+          <WebcamPanel status={feed} targetSign={sign.word} />
 
           {/* challenge card */}
-          <div style={{
+          <div key={sign.word} style={{
             background: C.bgPanel, border: `1px solid ${C.inkGold}55`,
             borderRadius: 6, padding: "16px 18px",
             boxShadow: `0 6px 30px #0008`,
+            animation: "inkWipe 0.5s cubic-bezier(0.1, 0.9, 0.2, 1) forwards"
           }}>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
               letterSpacing: 2, color: C.ashDim, marginBottom: 6 }}>PERFORM THE SIGN</div>

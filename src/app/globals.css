@@ -60,6 +60,17 @@ body {
   0%{transform:translateY(0);opacity:0}
   15%{opacity:.8} 100%{transform:translateY(-340px);opacity:0}
 }
+@keyframes inkWipe {
+  0% { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); opacity: 0; transform: translateX(20px); }
+  5% { opacity: 1; }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; transform: translateX(0); }
+}
+@keyframes ghostFade {
+  0% { opacity: 0; filter: blur(4px); transform: scale(1.1); }
+  10% { opacity: 0.8; filter: blur(0px); transform: scale(1); }
+  80% { opacity: 0.8; filter: blur(0px); transform: scale(1); }
+  100% { opacity: 0; filter: blur(4px); transform: scale(0.95); }
+}
 button:focus-visible {
   outline: 2px solid var(--ink-gold);
   outline-offset: 2px;

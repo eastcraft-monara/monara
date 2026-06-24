@@ -1,18 +1,39 @@
 import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
 
+// Toggle this to TRUE when the 2D Artist delivers the .png and .json files
+const USE_SPRITESHEET = false;
+
 export default class BattleScene extends Phaser.Scene {
   constructor() {
     super('BattleScene');
   }
 
   preload() {
-    this.load.image('samurai', '/assets/sprites/samurai.png');
-    this.load.image('imp', '/assets/sprites/imp.png');
+    // --- Audio ---
+    this.load.audio('bgm', '/assets/audio/bgm.wav');
+    this.load.audio('sfx_hit', '/assets/audio/hit.wav');
+    this.load.audio('sfx_miss', '/assets/audio/miss.wav');
+
+    if (USE_SPRITESHEET) {
+      // Integration Notes (For Developers) - Load Atlas
+      this.load.atlas('samurai', '/assets/sprites/samurai_sheet.png', '/assets/sprites/samurai_atlas.json');
+      this.load.atlas('imp', '/assets/sprites/imp_sheet.png', '/assets/sprites/imp_atlas.json');
+    } else {
+      // Prototype Static Images
+      this.load.image('samurai', '/assets/sprites/samurai.png');
+      this.load.image('imp', '/assets/sprites/imp.png');
+    }
   }
 
   create() {
     this.cameras.main.setBackgroundColor('rgba(0,0,0,0)'); // Transparent so React BG shows through
+
+    // --- Start BGM ---
+    // Make sure we don't play multiple BGMs if the scene restarts
+    if (this.sound.get('bgm')) this.sound.get('bgm').destroy();
+    this.bgm = this.sound.add('bgm', { loop: true, volume: 0.3 });
+    this.bgm.play();
 
     const w = this.scale.width;
     const h = this.scale.height;
@@ -20,17 +41,28 @@ export default class BattleScene extends Phaser.Scene {
     // Position on the ground line
     const groundY = h - 64;
 
-    // --- Samurai AI Sprite ---
-    this.playerSprite = this.add.image(w * 0.2, groundY + 16, 'samurai')
-      .setOrigin(0.5, 1)
-      .setScale(0.32); // Transparent background via python script
-    
-    // --- Fire Imp AI Sprite ---
-    this.monsterSprite = this.add.image(w * 0.8, groundY + 28, 'imp')
-      .setOrigin(0.5, 1)
-      .setScale(0.3); // Transparent background via python script
+    if (USE_SPRITESHEET) {
+      this.setupAnimations();
+      
+      this.playerSprite = this.add.sprite(w * 0.2, groundY, 'samurai').setOrigin(0.5, 1);
+      this.playerSprite.play('samurai_idle');
+      
+      this.monsterSprite = this.add.sprite(w * 0.8, groundY, 'imp').setOrigin(0.5, 1);
+      this.monsterSprite.play('imp_idle');
+    } else {
+      // --- Samurai AI Sprite (Prototype) ---
+      this.playerSprite = this.add.image(w * 0.2, groundY + 16, 'samurai')
+        .setOrigin(0.5, 1)
+        .setScale(0.32);
+      
+      // --- Fire Imp AI Sprite (Prototype) ---
+      this.monsterSprite = this.add.image(w * 0.8, groundY + 28, 'imp')
+        .setOrigin(0.5, 1)
+        .setScale(0.3);
+    }
 
     // --- Procedural Idle Animations (Breathing) ---
+    if (!USE_SPRITESHEET) {
     this.tweens.add({
       targets: this.playerSprite,
       scaleY: 0.31, // squish down slightly
@@ -52,6 +84,7 @@ export default class BattleScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
+    }
 
     // Listen to Zustand store for actions
     this.unsubscribe = useGameStore.subscribe((state, prevState) => {
@@ -67,9 +100,64 @@ export default class BattleScene extends Phaser.Scene {
         this.playMonsterAttack();
       }
     });
+
+    this.events.once('shutdown', () => {
+      if (this.unsubscribe) this.unsubscribe();
+    });
+  }
+
+  setupAnimations() {
+    // --- SAMURAI ANIMATIONS ---
+    this.anims.create({
+      key: 'samurai_idle',
+      frames: this.anims.generateFrameNames('samurai', { prefix: 'idle_', start: 0, end: 3, zeroPad: 2 }),
+      frameRate: 6, repeat: -1
+    });
+    this.anims.create({
+      key: 'samurai_attack',
+      frames: this.anims.generateFrameNames('samurai', { prefix: 'attack_', start: 0, end: 4, zeroPad: 2 }),
+      frameRate: 14, repeat: 0
+    });
+    this.anims.create({
+      key: 'samurai_hurt',
+      frames: this.anims.generateFrameNames('samurai', { prefix: 'hurt_', start: 0, end: 2, zeroPad: 2 }),
+      frameRate: 12, repeat: 0
+    });
+
+    // --- FIRE IMP ANIMATIONS ---
+    this.anims.create({
+      key: 'imp_idle',
+      frames: this.anims.generateFrameNames('imp', { prefix: 'idle_', start: 0, end: 3, zeroPad: 2 }),
+      frameRate: 6, repeat: -1
+    });
+    this.anims.create({
+      key: 'imp_attack',
+      frames: this.anims.generateFrameNames('imp', { prefix: 'attack_', start: 0, end: 4, zeroPad: 2 }),
+      frameRate: 14, repeat: 0
+    });
+    this.anims.create({
+      key: 'imp_hurt',
+      frames: this.anims.generateFrameNames('imp', { prefix: 'hurt_', start: 0, end: 2, zeroPad: 2 }),
+      frameRate: 12, repeat: 0
+    });
   }
 
   playPlayerAttack() {
+    if (!this.sys || !this.sound) return; // Prevent crashes if scene is destroyed during fast refresh
+    
+    this.sound.play('sfx_hit', { volume: 0.5 });
+    
+    if (USE_SPRITESHEET) {
+      this.playerSprite.play('samurai_attack');
+      this.playerSprite.once('animationcomplete', () => this.playerSprite.play('samurai_idle'));
+      
+      this.time.delayedCall(200, () => {
+        this.monsterSprite.play('imp_hurt');
+        this.monsterSprite.once('animationcomplete', () => this.monsterSprite.play('imp_idle'));
+      });
+      return;
+    }
+
     // 1. Player attacks (lunge right + lean forward to the enemy)
     const originalX = this.playerSprite.x;
     this.tweens.add({
@@ -111,6 +199,21 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   playMonsterAttack() {
+    if (!this.sys || !this.sound) return; // Prevent crashes if scene is destroyed during fast refresh
+    
+    this.sound.play('sfx_miss', { volume: 0.5 });
+    
+    if (USE_SPRITESHEET) {
+      this.monsterSprite.play('imp_attack');
+      this.monsterSprite.once('animationcomplete', () => this.monsterSprite.play('imp_idle'));
+      
+      this.time.delayedCall(200, () => {
+        this.playerSprite.play('samurai_hurt');
+        this.playerSprite.once('animationcomplete', () => this.playerSprite.play('samurai_idle'));
+      });
+      return;
+    }
+
     // 1. Monster attacks (lunge left + lean forward)
     this.tweens.add({
       targets: this.monsterSprite,
