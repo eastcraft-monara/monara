@@ -1,9 +1,16 @@
 import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
+import { getSignsForZone } from '../systems/CurriculumManager';
+import { getRandomMonster } from '../systems/MonsterDB';
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
     super('BattleScene');
+  }
+
+  init(data) {
+    this.zoneId = data.zoneId || 1;
+    this.vocab = getSignsForZone(this.zoneId);
   }
 
   create() {
@@ -12,19 +19,18 @@ export default class BattleScene extends Phaser.Scene {
     // Background
     this.add.rectangle(0, 0, width, height, 0x0D0A0E).setOrigin(0);
 
-    // HP Bars setup
-    this.playerMaxHp = 100;
-    this.playerHp = 100;
-    this.monsterMaxHp = 50;
-    this.monsterHp = 50;
+    // Monster setup
+    this.monsterData = getRandomMonster(this.zoneId);
+    this.monsterMaxHp = this.monsterData.hp;
+    this.monsterHp = this.monsterMaxHp;
 
     // UI Text
     this.playerHpText = this.add.text(50, 50, `Player HP: ${this.playerHp}/${this.playerMaxHp}`, { font: '24px monospace', fill: '#4CAF82' });
     this.monsterHpText = this.add.text(width - 350, 50, `Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`, { font: '24px monospace', fill: '#E05252' });
 
-    // Monster Sprite (Mock with a rectangle for now)
-    this.monster = this.add.rectangle(width / 2, height / 2 - 50, 150, 150, 0xC8334A);
-    this.add.text(width / 2, height / 2 - 50, 'MONSTER', { font: '20px serif', fill: '#000' }).setOrigin(0.5);
+    // Monster Sprite
+    this.monster = this.add.rectangle(width / 2, height / 2 - 50, 150, 150, this.monsterData.color);
+    this.add.text(width / 2, height / 2 - 50, this.monsterData.name, { font: '20px serif', fill: '#000' }).setOrigin(0.5);
 
     // Set initial target sign
     this.generateNewTarget();
@@ -55,8 +61,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   generateNewTarget() {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const randomChar = alphabet[Math.floor(Math.random() * alphabet.length)];
+    const randomChar = this.vocab[Math.floor(Math.random() * this.vocab.length)];
     useGameStore.getState().setTargetSign(randomChar);
     this.timeLeft = 12; // reset timer
     if (this.timerText) {
@@ -135,12 +140,21 @@ export default class BattleScene extends Phaser.Scene {
     if (this.timeEvent) this.timeEvent.remove();
     this.add.text(this.scale.width / 2, this.scale.height / 2, 'VICTORY!', { font: '64px serif', fill: '#D4A853' }).setOrigin(0.5);
     useGameStore.getState().setTargetSign(null);
+    
+    this.time.delayedCall(1500, () => {
+      this.scene.start('LevelUpScene', { zoneId: this.zoneId });
+    });
   }
 
   defeat() {
     if (this.timeEvent) this.timeEvent.remove();
     this.add.text(this.scale.width / 2, this.scale.height / 2, 'DEFEATED...', { font: '64px serif', fill: '#E05252' }).setOrigin(0.5);
     useGameStore.getState().setTargetSign(null);
+    
+    this.time.delayedCall(2000, () => {
+      useGameStore.getState().setScene('WorldMap');
+      this.scene.start('WorldMapScene');
+    });
   }
 
   onDestroy() {

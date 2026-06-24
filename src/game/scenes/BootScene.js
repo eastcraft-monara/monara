@@ -10,10 +10,9 @@ export default class BootScene extends Phaser.Scene {
     
     // Simulate loading
     this.time.delayedCall(1000, () => {
-      // For now, jump straight to BattleScene to test Sprint 2
       import('@/store/gameStore').then(({ default: useGameStore }) => {
-        useGameStore.getState().setScene('Battle');
-        this.scene.start('BattleScene');
+        useGameStore.getState().setScene('WorldMap');
+        this.scene.start('WorldMapScene');
       });
     });
   }
