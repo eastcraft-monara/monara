@@ -11,8 +11,8 @@ export default class BootScene extends Phaser.Scene {
     // Simulate loading
     this.time.delayedCall(1000, () => {
       import('@/store/gameStore').then(({ default: useGameStore }) => {
-        useGameStore.getState().setScene('WorldMap');
-        this.scene.start('WorldMapScene');
+        useGameStore.getState().setScene('Title');
+        this.scene.start('TitleScene');
       });
     });
   }

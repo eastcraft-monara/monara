@@ -6,7 +6,19 @@ import useGameStore from '@/store/gameStore';
 export default function WebcamPanel() {
   const videoRef = useRef(null);
   const [hasCameraAccess, setHasCameraAccess] = useState(false);
+  const [showGhost, setShowGhost] = useState(false);
   const setGesturePrediction = useGameStore((state) => state.setGesturePrediction);
+  const targetSign = useGameStore((state) => state.targetSign);
+
+  useEffect(() => {
+    if (targetSign) {
+      setShowGhost(true);
+      const timer = setTimeout(() => {
+        setShowGhost(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [targetSign]);
 
   useEffect(() => {
     let active = true;
@@ -30,10 +42,17 @@ export default function WebcamPanel() {
     // Since ML is skipped, we simulate gesture predictions using keyboard inputs
     const handleKeyDown = (e) => {
       const key = e.key.toUpperCase();
-      // If user types A-Z or 0-9, simulate a successful gesture detection
-      if (/^[A-Z0-9]$/.test(key)) {
-        console.log(`[Mock Gesture Engine] Predict: ${key} (Confidence: 95%)`);
-        setGesturePrediction({ char: key, confidence: 0.95, timestamp: Date.now() });
+      // If user types A-Z or 0-9, simulate a single letter. If space, simulate the full target word.
+      if (/^[A-Z0-9 ]$/.test(key)) {
+        let predicted = key;
+        if (key === ' ') {
+          predicted = useGameStore.getState().targetSign; // Auto-predict current target word
+        }
+        
+        if (predicted) {
+          console.log(`[Mock Gesture Engine] Predict: ${predicted} (Confidence: 95%)`);
+          setGesturePrediction({ char: predicted, confidence: 0.95, timestamp: Date.now() });
+        }
       }
     };
 
@@ -59,15 +78,24 @@ export default function WebcamPanel() {
       />
       
       {!hasCameraAccess && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-[#E8E2D9] bg-black/80 font-mono text-xs text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-[#E8E2D9] bg-black/80 font-mono text-[10px] text-center leading-tight">
           <span>Camera offline</span>
-          <span className="text-[#4CAF82] mt-2">Mock Mode:</span>
-          <span>Press any key A-Z</span>
+          <span className="text-[#4CAF82] mt-1 font-bold">Mock Mode:</span>
+          <span>Press A-Z/0-9</span>
+          <span className="text-[#D4A853]">Press SPACE for words</span>
         </div>
       )}
 
       {/* Ghost overlay for teaching signs */}
-      <div id="ghost-diagram-container" className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 mix-blend-screen bg-blue-500/20"></div>
+      <div 
+        className={`absolute inset-0 pointer-events-none transition-opacity duration-500 flex items-center justify-center bg-black/40 mix-blend-screen
+          ${showGhost ? 'opacity-100' : 'opacity-0'}
+        `}
+      >
+        <span className="text-[120px] font-bold text-[#4CAF82] font-mono opacity-60">
+          {targetSign}
+        </span>
+      </div>
     </div>
   );
 }

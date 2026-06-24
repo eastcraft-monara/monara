@@ -24,13 +24,30 @@ export default class BattleScene extends Phaser.Scene {
     this.monsterMaxHp = this.monsterData.hp;
     this.monsterHp = this.monsterMaxHp;
 
+    // Player setup
+    this.playerMaxHp = 100;
+    this.playerHp = 100;
+
     // UI Text
-    this.playerHpText = this.add.text(50, 50, `Player HP: ${this.playerHp}/${this.playerMaxHp}`, { font: '24px monospace', fill: '#4CAF82' });
-    this.monsterHpText = this.add.text(width - 350, 50, `Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`, { font: '24px monospace', fill: '#E05252' });
+    this.playerHpText = this.add.text(50, 40, 'Player HP', { font: '24px monospace', fill: '#4CAF82' });
+    this.monsterHpText = this.add.text(width - 350, 40, 'Monster HP', { font: '24px monospace', fill: '#E05252' });
+
+    // HP Bars Backgrounds
+    this.add.rectangle(50, 80, 300, 20, 0x333333).setOrigin(0);
+    this.add.rectangle(width - 350, 80, 300, 20, 0x333333).setOrigin(0);
+
+    // HP Bars Foreground
+    this.playerHpBar = this.add.rectangle(50, 80, 300, 20, 0x4CAF82).setOrigin(0);
+    this.monsterHpBar = this.add.rectangle(width - 350, 80, 300, 20, 0xE05252).setOrigin(0);
 
     // Monster Sprite
     this.monster = this.add.rectangle(width / 2, height / 2 - 50, 150, 150, this.monsterData.color);
     this.add.text(width / 2, height / 2 - 50, this.monsterData.name, { font: '20px serif', fill: '#000' }).setOrigin(0.5);
+
+    // Timer for attack
+    this.timerText = this.add.text(width / 2, height / 2 + 100, '', { font: '28px monospace', fill: '#E8E2D9' }).setOrigin(0.5);
+    this.timeLimit = 12; // 12 seconds
+    this.timeLeft = this.timeLimit;
 
     // Set initial target sign
     this.generateNewTarget();
@@ -44,11 +61,6 @@ export default class BattleScene extends Phaser.Scene {
       }
     });
 
-    // Timer for attack
-    this.timerText = this.add.text(width / 2, height / 2 + 100, '', { font: '28px monospace', fill: '#E8E2D9' }).setOrigin(0.5);
-    this.timeLimit = 12; // 12 seconds
-    this.timeLeft = this.timeLimit;
-    
     this.timeEvent = this.time.addEvent({
       delay: 1000,
       callback: this.tickTimer,
@@ -109,9 +121,11 @@ export default class BattleScene extends Phaser.Scene {
     if (this.monsterHp <= 0) {
       this.monsterHp = 0;
       this.monsterHpText.setText(`Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`);
+      this.updateHpBars();
       this.victory();
     } else {
       this.monsterHpText.setText(`Monster HP: ${this.monsterHp}/${this.monsterMaxHp}`);
+      this.updateHpBars();
       // Animate monster hit
       this.tweens.add({
         targets: this.monster,
@@ -130,9 +144,11 @@ export default class BattleScene extends Phaser.Scene {
     if (this.playerHp <= 0) {
       this.playerHp = 0;
       this.playerHpText.setText(`Player HP: ${this.playerHp}/${this.playerMaxHp}`);
+      this.updateHpBars();
       this.defeat();
     } else {
       this.playerHpText.setText(`Player HP: ${this.playerHp}/${this.playerMaxHp}`);
+      this.updateHpBars();
     }
   }
 
@@ -157,10 +173,35 @@ export default class BattleScene extends Phaser.Scene {
     });
   }
 
+  updateHpBars() {
+    // Player HP Bar Tween
+    const playerHpPercent = Math.max(this.playerHp / this.playerMaxHp, 0);
+    this.tweens.add({
+      targets: this.playerHpBar,
+      width: 300 * playerHpPercent,
+      duration: 300,
+      ease: 'Power2'
+    });
+
+    // Monster HP Bar Tween
+    const monsterHpPercent = Math.max(this.monsterHp / this.monsterMaxHp, 0);
+    this.tweens.add({
+      targets: this.monsterHpBar,
+      width: 300 * monsterHpPercent,
+      duration: 300,
+      ease: 'Power2'
+    });
+  }
+
   onDestroy() {
     if (this.unsubscribeStore) {
       this.unsubscribeStore();
     }
     useGameStore.getState().setTargetSign(null);
+    this.timerText = null;
+    this.playerHpText = null;
+    this.monsterHpText = null;
+    this.playerHpBar = null;
+    this.monsterHpBar = null;
   }
 }
