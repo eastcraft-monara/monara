@@ -597,6 +597,7 @@ function MeterRow({ label, pct, color, suffix }) {
 // SCREEN 4 — PvP CHALLENGE
 // ============================================================
 function PvPScreen({ go }) {
+  const mpRoomId = useGameStore(state => state.mpRoomId);
   const [bet, setBet] = useState(5000);
   const [created, setCreated] = useState(false);
   return (
@@ -632,7 +633,12 @@ function PvPScreen({ go }) {
               <Row label="Rounds" value="10" mono />
             </div>
             <div style={{ marginTop: 20 }}>
-              <RedBtn onClick={() => setCreated(true)}>Lock Bet & Generate Link →</RedBtn>
+              <RedBtn onClick={() => {
+                const { connectSocket, createPvPRoom } = useGameStore.getState();
+                connectSocket();
+                createPvPRoom(bet, "Player1");
+                setCreated(true);
+              }}>Lock Bet & Generate Link</RedBtn>
             </div>
           </Panel>
         ) : (
@@ -645,10 +651,14 @@ function PvPScreen({ go }) {
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
               color: C.inkGold, background: "#000", padding: "12px 14px", borderRadius: 4,
               border: `1px solid ${C.inkGold}44`, wordBreak: "break-all", marginBottom: 16 }}>
-              eastcraftmonara.gg/pvp/7xKp9Qm4-z3-{bet}
+              {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/{mpRoomId || "connecting..."}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <GoldBtn small onClick={() => go("battle")}>Open Battle Room →</GoldBtn>
+              <GoldBtn small onClick={() => {
+                const { setGameMode } = useGameStore.getState();
+                setGameMode("pvp");
+                go("battle");
+              }}>Open Battle Room</GoldBtn>
               <button onClick={() => setCreated(false)} style={ghostBtn}>Cancel</button>
             </div>
           </Panel>
