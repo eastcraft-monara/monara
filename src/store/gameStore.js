@@ -46,6 +46,8 @@ const useGameStore = create((set, get) => ({
   mpScores: {},
   mpSeed: null,
   mpWinner: null,
+  mpReady: false,
+  mpOpponentReady: false,
   opponentLandmarks: null,
   opponentAction: null,
   
@@ -92,7 +94,7 @@ const useGameStore = create((set, get) => ({
       
       socketInstance.on("disconnect", (reason) => {
         console.warn("[Socket] Disconnected. Reason:", reason);
-        set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null });
+        set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null, mpReady: false, mpOpponentReady: false });
       });
       
       socketInstance.on("room_created", ({ roomId }) => {
@@ -108,6 +110,14 @@ const useGameStore = create((set, get) => ({
       socketInstance.on("opponent_joined", ({ opponentHandle }) => {
         console.log(`[Socket] Opponent Joined: ${opponentHandle}`);
         set({ mpOpponent: { handle: opponentHandle }, mpStatus: 'found' });
+      });
+      
+      socketInstance.on("player_ready_status", ({ handle }) => {
+        const { mpOpponent } = get();
+        if (mpOpponent && mpOpponent.handle === handle) {
+          console.log(`[Socket] Opponent ${handle} is READY`);
+          set({ mpOpponentReady: true });
+        }
       });
       
       socketInstance.on("battle_start", ({ seed, round }) => {
@@ -163,6 +173,13 @@ const useGameStore = create((set, get) => ({
     set({ mpHandle: playerHandle, mpRoomId: roomId });
     if (socketInstance) {
       socketInstance.emit("join_room", { roomId, playerHandle, signature, pubkey });
+    }
+  },
+  sendReady: () => {
+    const { mpRoomId } = get();
+    if (socketInstance && mpRoomId) {
+      socketInstance.emit("player_ready", { roomId: mpRoomId });
+      set({ mpReady: true });
     }
   },
   startPvPBattle: () => {

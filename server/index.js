@@ -60,7 +60,7 @@ io.on("connection", (socket) => {
       id: roomId,
       bet,
       players: {
-        [socket.id]: { handle: playerHandle, ready: true, score: 0, currentRoundScore: null, txSignature: signature, pubkey: null } // We don't have pubkey yet if not provided
+        [socket.id]: { handle: playerHandle, ready: false, score: 0, currentRoundScore: null, txSignature: signature, pubkey: null } // We don't have pubkey yet if not provided
       },
       playerIds: [socket.id],
       status: 'waiting',
@@ -93,7 +93,7 @@ io.on("connection", (socket) => {
     }
 
     console.log(`[Fee TX] Challenger ${playerHandle} paid fee: ${signature}`);
-    room.players[socket.id] = { handle: playerHandle, ready: true, score: 0, currentRoundScore: null, txSignature: signature, pubkey };
+    room.players[socket.id] = { handle: playerHandle, ready: false, score: 0, currentRoundScore: null, txSignature: signature, pubkey };
     room.playerIds.push(socket.id);
     socket.join(roomId);
     room.status = 'active';
@@ -107,7 +107,29 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("opponent_joined", { opponentHandle: playerHandle });
   });
 
+  socket.on("player_ready", ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || !room.players[socket.id]) return;
+    
+    room.players[socket.id].ready = true;
+    console.log(`[Ready] ${room.players[socket.id].handle} is ready in room ${roomId}`);
+    
+    // Notify opponent
+    socket.to(roomId).emit("player_ready_status", { handle: room.players[socket.id].handle });
+    
+    // Check if all players are ready
+    if (room.playerIds.length === 2 && room.playerIds.every(id => room.players[id].ready)) {
+      if (room.status === 'active') {
+        console.log(`[Start] Both players ready in room ${roomId}. Starting match!`);
+        const seed = generateSeed();
+        room.currentSeed = seed;
+        io.to(roomId).emit("battle_start", { seed, round: room.round });
+      }
+    }
+  });
+
   socket.on("start_battle", ({ roomId }) => {
+    // Deprecated: start_battle is now handled automatically by player_ready
     const room = rooms[roomId];
     if (room && room.status === 'active') {
       const seed = generateSeed();

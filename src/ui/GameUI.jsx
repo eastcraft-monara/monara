@@ -318,7 +318,7 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
@@ -645,6 +645,47 @@ function BattleScreen({ go }) {
           </div>
         </div>
       )}
+
+      {/* PvP Pre-match Lobby Modal */}
+      {gameMode === 'pvp' && mpStatus === 'found' && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "rgba(10, 6, 8, 0.95)", zIndex: 9999,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          animation: "inkWipe 0.4s ease-out forwards"
+        }}>
+          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>PRE-MATCH LOBBY</h2>
+          <p style={{ fontFamily: "'Noto Serif', serif", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>Both players must be ready to start</p>
+          
+          <div style={{ display: "flex", gap: 32, marginBottom: 40 }}>
+            {/* You */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
+              <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>YOU</div>
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpReady ? C.gestureOk : "#444"}`, color: mpReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold" }}>
+                {mpReady ? "READY ✓" : "WAITING"}
+              </div>
+            </div>
+            
+            <div style={{ color: C.ashDim, alignSelf: "center", fontFamily: "'Cinzel', serif", fontSize: 20 }}>VS</div>
+            
+            {/* Opponent */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
+              <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>{mpOpponent?.handle || "OPPONENT"}</div>
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpOpponentReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpOpponentReady ? C.gestureOk : "#444"}`, color: mpOpponentReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold" }}>
+                {mpOpponentReady ? "READY ✓" : "WAITING"}
+              </div>
+            </div>
+          </div>
+          
+          <GoldBtn 
+            onClick={() => { if (!mpReady) sendReady(); }} 
+            disabled={mpReady}
+            style={{ opacity: mpReady ? 0.5 : 1, cursor: mpReady ? "not-allowed" : "pointer" }}
+          >
+            {mpReady ? "Waiting for Opponent..." : "I'M READY"}
+          </GoldBtn>
+        </div>
+      )}
     </Stage>
   );
 }
@@ -722,7 +763,11 @@ function CreateChallengeScreen({ go }) {
       const amountToTransfer = bet * Math.pow(10, 6);
       console.log(`[Create Room] Preparing transaction: ${bet} MONARA to ${feeWallet}`);
 
-      const tx = new Transaction().add(
+      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      const tx = new Transaction({
+        recentBlockhash: latestBlockhash.blockhash,
+        feePayer: publicKey
+      }).add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: feePubkey,
@@ -741,7 +786,11 @@ function CreateChallengeScreen({ go }) {
       console.log("[Create Room] Transaction sent! Signature:", signature);
       
       console.log("[Create Room] Waiting for confirmation...");
-      await connection.confirmTransaction(signature, 'processed');
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+      }, 'processed');
       console.log("[Create Room] Transaction confirmed!");
 
       const { connectSocket, createPvPRoom } = useGameStore.getState();
@@ -1221,7 +1270,11 @@ function AcceptChallengeScreen({ roomId, go }) {
 
       const amountToTransfer = roomBet * Math.pow(10, 6);
 
-      const tx = new Transaction().add(
+      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      const tx = new Transaction({
+        recentBlockhash: latestBlockhash.blockhash,
+        feePayer: publicKey
+      }).add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: feePubkey,
@@ -1236,7 +1289,11 @@ function AcceptChallengeScreen({ roomId, go }) {
       );
       
       const signature = await sendTransaction(tx, connection);
-      await connection.confirmTransaction(signature, 'processed');
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+      }, 'processed');
 
       const { connectSocket, joinPvPRoom, setGameMode } = useGameStore.getState();
       connectSocket();
