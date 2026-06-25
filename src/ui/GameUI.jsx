@@ -81,11 +81,45 @@ function TierBadge({ tier }) {
 // The real WebcamPanel is now imported from '@/ui/WebcamPanel.jsx'
 
 // ============================================================
+// DYNAMIC TOKEN BALANCE HOOK
+// ============================================================
+function useTokenBalance() {
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const [balance, setBalance] = useState(0);
+
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(0);
+      return;
+    }
+    const fetchBalance = async () => {
+      try {
+        const tokenCa = process.env.NEXT_PUBLIC_TOKEN_CA;
+        if (!tokenCa) return;
+        const mintPubkey = new PublicKey(tokenCa);
+        const playerAta = await getAssociatedTokenAddress(mintPubkey, publicKey);
+        const info = await connection.getTokenAccountBalance(playerAta);
+        setBalance(info.value.uiAmount || 0);
+      } catch (err) {
+        setBalance(0);
+      }
+    };
+    fetchBalance();
+    const id = setInterval(fetchBalance, 10000);
+    return () => clearInterval(id);
+  }, [publicKey, connection]);
+
+  return balance;
+}
+
+// ============================================================
 // SCREEN 1 — WALLET GATE
 // ============================================================
 function GateScreen({ go }) {
   const { connected, publicKey } = useWallet();
   const [mounted, setMounted] = useState(false);
+  const balance = useTokenBalance();
   const { setWalletStatus } = useGameStore();
 
   useEffect(() => {
@@ -142,7 +176,7 @@ function GateScreen({ go }) {
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
             <Panel>
               <Row label="Wallet" value={`${publicKey?.toString().slice(0, 4)}...${publicKey?.toString().slice(-4)}`} mono />
-              <Row label="$MONARA Held" value="52,400" mono gold />
+              <Row label="$MONARA Held" value={balance.toLocaleString()} mono gold />
               <Row label="Access Tier" value={<TierBadge tier="Samurai" />} />
               <Row label="Status" value={<span style={{ color: C.gestureOk }}>● Verified on-chain</span>} mono />
             </Panel>
@@ -172,8 +206,8 @@ function LockNote() {
 function MapScreen({ go }) {
   const { highestFloorCleared, currentFloor, setCurrentFloor } = useGameStore();
 
-  // The lowest floor number that is strictly greater than highestFloorCleared
-  const nextAvailableFloorNum = [...TOWER_FLOORS].reverse().find(f => f.n > highestFloorCleared)?.n || 8;
+  const nextAvailableFloorNum = Math.min(highestFloorCleared + 1, 8);
+  const balance = useTokenBalance();
 
   const floors = TOWER_FLOORS.map(f => ({
     ...f,
@@ -184,7 +218,7 @@ function MapScreen({ go }) {
 
   return (
     <Stage>
-      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <TopBar tier="Samurai" balance={balance.toLocaleString()} go={go} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 30,
         maxWidth: 900, margin: "30px auto 0", alignItems: "start" }}>
         {/* tower column */}
@@ -656,13 +690,20 @@ function MeterRow({ label, pct, color, suffix }) {
 // ============================================================
 // SCREEN 4 — PvP CHALLENGE
 // ============================================================
-function PvPScreen({ go }) {
-  const mpRoomId = useGameStore(state => state.mpRoomId);
-  const [bet, setBet] = useState(30000);
+function CreateChallengeScreen({ go }) {
+  const { mpRoomId } = useGameStore();
+  const [bet, setBet] = useState(1000);
   const [created, setCreated] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
+  const balance = useTokenBalance();
+
+  const betOptionBtn = {
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, padding: "8px 12px",
+      borderRadius: 3, cursor: "pointer", border: `1px solid ${C.inkGold}44`,
+      color: C.ash, margin: "4px"
+  };
 
   const handleCreate = async () => {
     if (!publicKey) return;
@@ -712,7 +753,7 @@ function PvPScreen({ go }) {
 
   return (
     <Stage>
-      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <TopBar tier="Samurai" balance={balance.toLocaleString()} go={go} />
       <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
         <Eyebrow color={C.inkRed}>1v1 Wager</Eyebrow>
         <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
@@ -724,19 +765,30 @@ function PvPScreen({ go }) {
           <Panel>
             <Eyebrow>Wager Tier</Eyebrow>
             <div style={{ display: "flex", gap: 8, margin: "12px 0 6px", flexWrap: "wrap" }}>
-              {[
-                { name: "Skirmish", v: 5000 },
-                { name: "Duel", v: 30000 },
-                { name: "Bloodmatch", v: 100000 }
-              ].map(({ name, v }) => (
-                <button key={v} onClick={() => setBet(v)} style={{
-                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
-                  padding: "9px 14px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
-                  border: `1px solid ${bet === v ? C.inkGold : "#ffffff22"}`,
-                  background: bet === v ? `${C.inkGold}1a` : "transparent",
-                  color: bet === v ? C.inkGold : C.ash,
-                }}>{name} · {v.toLocaleString()}</button>
-              ))}
+                <div 
+                  onClick={() => setBet(100)}
+                  style={{ ...betOptionBtn, background: bet === 100 ? C.inkRed : "transparent" }}
+                >
+                  MIN (100)
+                </div>
+                <div 
+                  onClick={() => setBet(Math.floor(balance * 0.01))}
+                  style={{ ...betOptionBtn, background: bet === Math.floor(balance * 0.01) ? C.inkRed : "transparent" }}
+                >
+                  1% OF YOUR BAG · {Math.floor(balance * 0.01).toLocaleString()} $MONARA
+                </div>
+                <div 
+                  onClick={() => setBet(Math.floor(balance * 0.1))}
+                  style={{ ...betOptionBtn, background: bet === Math.floor(balance * 0.1) ? C.inkRed : "transparent" }}
+                >
+                  10%
+                </div>
+                <div 
+                  onClick={() => setBet(balance)}
+                  style={{ ...betOptionBtn, background: bet === balance ? C.inkRed : "transparent" }}
+                >
+                  MAX ({balance.toLocaleString()})
+                </div>
             </div>
             <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
               <Row label="Your stake" value={bet.toLocaleString() + " $MONARA"} mono gold />
@@ -759,10 +811,24 @@ function PvPScreen({ go }) {
             <p style={{ fontFamily: "'Noto Serif', serif", color: C.ash, fontSize: 14, margin: "10px 0 16px", lineHeight: 1.6 }}>
               Drop this link in the community. First to accept locks {bet.toLocaleString()} $MONARA.
             </p>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
               color: C.inkGold, background: "#000", padding: "12px 14px", borderRadius: 4,
               border: `1px solid ${C.inkGold}44`, wordBreak: "break-all", marginBottom: 16 }}>
-              {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/{mpRoomId || "connecting..."}
+              <span>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/{mpRoomId || "connecting..."}</span>
+              <button 
+                onClick={() => {
+                  const link = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/${mpRoomId}`;
+                  navigator.clipboard.writeText(link);
+                  alert("Copied to clipboard!");
+                }}
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}
+                title="Copy Link"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.inkGold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <GoldBtn small onClick={() => {
@@ -784,6 +850,7 @@ function PvPScreen({ go }) {
 // ============================================================
 function BurnScreen({ go }) {
   const [emberDone, setEmberDone] = useState(false);
+  const balance = useTokenBalance();
   useEffect(() => { const t = setTimeout(() => setEmberDone(true), 1800); return () => clearTimeout(t); }, []);
   return (
     <Stage>
@@ -800,13 +867,13 @@ function BurnScreen({ go }) {
         <Panel>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
             letterSpacing: 1.5, color: C.ashDim, marginBottom: 14 }}>
-            1% OF YOUR BAG · 52,400 $MONARA
+            1% OF YOUR BAG · {balance.toLocaleString()} $MONARA
           </div>
-          <BurnLine label="Redistributed to winner" amount="−471.6" sub="0.9%" color={C.inkRed} />
+          <BurnLine label="Redistributed to winner" amount={`−${(balance * 0.009).toLocaleString()}`} sub="0.9%" color={C.inkRed} />
           <div style={{ height: 10 }} />
-          <BurnLine label="Burned forever" amount="−52.4" sub="0.1%" color={C.burn} ash={emberDone} />
+          <BurnLine label="Burned forever" amount={`−${(balance * 0.001).toLocaleString()}`} sub="0.1%" color={C.burn} ash={emberDone} />
           <div style={{ height: 16, borderTop: "1px solid #ffffff12", margin: "14px 0 0", paddingTop: 14 }}>
-            <Row label="New balance" value="51,876 $MONARA" mono gold />
+            <Row label="New balance" value={`${(balance * 0.99).toLocaleString()} $MONARA`} mono gold />
             <div style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5,
               color: C.ashDim, opacity: .7 }}>
               burn tx: 4Qm…aF9 · logged on-chain {emberDone ? "✓" : "…"}
@@ -1109,6 +1176,7 @@ function AcceptChallengeScreen({ roomId, go }) {
   const [roomBet, setRoomBet] = useState(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
+  const balance = useTokenBalance();
 
   useEffect(() => {
     const { connectSocket, getRoomInfo } = useGameStore.getState();
@@ -1168,7 +1236,7 @@ function AcceptChallengeScreen({ roomId, go }) {
 
   return (
     <Stage>
-      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <TopBar tier="Samurai" balance={balance.toLocaleString()} go={go} />
       <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
         <Panel accent={C.inkRed}>
           <Eyebrow color={C.inkRed}>Incoming Challenge</Eyebrow>
