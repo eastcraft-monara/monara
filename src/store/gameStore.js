@@ -49,7 +49,8 @@ const useGameStore = create((set, get) => ({
   mpOpponentReady: false,
   isHost: true,
   opponentLandmarks: null,
-  opponentAction: null,
+  opponentHitCount: 0,
+  opponentMissCount: 0,
   
   // Actions
   setWalletStatus: (connected, access, address) => set({ 
@@ -145,8 +146,8 @@ const useGameStore = create((set, get) => ({
       });
       
       socketInstance.on("opponent_landmarks", (landmarks) => set({ opponentLandmarks: landmarks }));
-      socketInstance.on("opponent_hit", () => set({ opponentAction: { type: 'attack', timestamp: Date.now() } }));
-      socketInstance.on("opponent_miss", () => set({ opponentAction: { type: 'hurt', timestamp: Date.now() } }));
+      socketInstance.on("opponent_hit", () => set((state) => ({ opponentHitCount: state.opponentHitCount + 1 })));
+      socketInstance.on("opponent_miss", () => set((state) => ({ opponentMissCount: state.opponentMissCount + 1 })));
     }
   },
   disconnectSocket: () => {

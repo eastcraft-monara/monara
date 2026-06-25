@@ -318,11 +318,11 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentAction } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentHitCount, opponentMissCount } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
-  const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
-  const monsterDamage = 20 + ((currentFloor - 1) * 5); // scales up to 55 on floor 8
+  const maxMonsterHP = gameMode === 'pvp' ? 100 : 100 + ((currentFloor - 1) * 25);
+  const monsterDamage = 15 + ((currentFloor - 1) * 2); // scales up to 55 on floor 8
 
   const [playerHP, setPlayerHP] = useState(100);
   const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
@@ -372,27 +372,35 @@ function BattleScreen({ go }) {
     return () => clearInterval(id);
   }, [signIdx, modelReady, gameMode]);
 
-  // Listen for opponent actions in real-time
+  const prevOppHit = useRef(opponentHitCount);
+  const prevOppMiss = useRef(opponentMissCount);
+
+  // Listen for opponent actions in real-time using robust counters
   useEffect(() => {
-    if (!opponentAction || gameMode !== 'pvp') return;
-    if (opponentAction.type === 'attack') {
-      // Opponent completed a sign, we take damage!
-      const dmg = 28; 
+    if (gameMode !== 'pvp') return;
+
+    if (opponentHitCount > prevOppHit.current) {
+      const hits = opponentHitCount - prevOppHit.current;
+      prevOppHit.current = opponentHitCount;
+      const dmg = 28 * hits; 
       setPlayerHP(p => Math.max(0, p - dmg));
       setShake(true); setTimeout(() => setShake(false), 500);
       setFx({ side: "player", txt: `-${dmg}` });
       setPPose("knock");
       setEPose("lunge");
       setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
-    } else if (opponentAction.type === 'hurt') {
-      // Opponent missed/failed timer, they take penalty!
-      const dmg = 20; 
+    }
+    
+    if (opponentMissCount > prevOppMiss.current) {
+      const misses = opponentMissCount - prevOppMiss.current;
+      prevOppMiss.current = opponentMissCount;
+      const dmg = 20 * misses; 
       setMonsterHP(m => Math.max(0, m - dmg));
       setFx({ side: "enemy", txt: `-${dmg}` });
       setEPose("knock");
       setTimeout(() => { setEPose("idle"); setFx(null); }, 600);
     }
-  }, [opponentAction, gameMode]);
+  }, [opponentHitCount, opponentMissCount, gameMode]);
 
   // Handle timeout
   useEffect(() => {
