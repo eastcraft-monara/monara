@@ -76,7 +76,8 @@ const useGameStore = create((set, get) => ({
   // Multiplayer Actions
   connectSocket: () => {
     if (!socketInstance) {
-      socketInstance = io("http://localhost:3001");
+      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:3001";
+      socketInstance = io(wsUrl);
       socketInstance.on("connect", () => set({ socketConnected: true }));
       socketInstance.on("disconnect", () => set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null }));
       
