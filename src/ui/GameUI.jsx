@@ -836,7 +836,11 @@ function CreateChallengeScreen({ go }) {
                 setGameMode("pvp");
                 go("battle");
               }}>Open Battle Room</GoldBtn>
-              <button onClick={() => setCreated(false)} style={ghostBtn}>Cancel</button>
+              <button onClick={() => {
+                const { disconnectSocket } = useGameStore.getState();
+                disconnectSocket();
+                setCreated(false);
+              }} style={ghostBtn}>Cancel & Refund</button>
             </div>
           </Panel>
         )}
