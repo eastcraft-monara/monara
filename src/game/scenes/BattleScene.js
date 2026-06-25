@@ -164,6 +164,8 @@ export default class BattleScene extends Phaser.Scene {
         if (action.data && action.data.targetHp === 0) {
           this.time.delayedCall(400, () => this.playDeathSequence(true));
         }
+      } else if (action.type === 'reset_match') {
+        this.scene.restart();
       }
     });
 

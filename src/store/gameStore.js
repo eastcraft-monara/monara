@@ -38,6 +38,7 @@ const useGameStore = create((set, get) => ({
 
   // Multiplayer State
   socketConnected: false,
+  mpHandle: null,
   mpRoomId: null,
   mpOpponent: null, // { handle: 'opponent_x' }
   mpStatus: 'idle', // 'idle' | 'searching' | 'found' | 'active' | 'ended'
@@ -86,7 +87,14 @@ const useGameStore = create((set, get) => ({
       socketInstance.on("opponent_joined", ({ opponentHandle }) => set({ mpOpponent: { handle: opponentHandle }, mpStatus: 'found' }));
       
       socketInstance.on("battle_start", ({ seed, round }) => set({ mpSeed: seed, mpRound: round, mpStatus: 'active' }));
-      socketInstance.on("round_resolved", ({ round, scores, winnerHandle }) => set({ mpScores: scores, mpRound: round }));
+      socketInstance.on("round_resolved", ({ round, scores, winnerHandle }) => {
+        const { mpHandle, mpOpponent } = get();
+        let youScore = 0;
+        let oppScore = 0;
+        if (mpHandle) youScore = scores[mpHandle] || 0;
+        if (mpOpponent?.handle) oppScore = scores[mpOpponent.handle] || 0;
+        set({ mpScores: { you: youScore, opp: oppScore }, mpRound: round });
+      });
       socketInstance.on("match_result", ({ winnerHandle, loserHandle }) => set({ mpWinner: winnerHandle, mpStatus: 'ended' }));
       
       socketInstance.on("opponent_landmarks", (landmarks) => set({ opponentLandmarks: landmarks }));
@@ -101,9 +109,11 @@ const useGameStore = create((set, get) => ({
     }
   },
   createPvPRoom: (bet, playerHandle, signature) => {
+    set({ mpHandle: playerHandle });
     if (socketInstance) socketInstance.emit("create_room", { bet, playerHandle, signature });
   },
   joinPvPRoom: (roomId, playerHandle, signature) => {
+    set({ mpHandle: playerHandle });
     if (socketInstance) socketInstance.emit("join_room", { roomId, playerHandle, signature });
   },
   startPvPBattle: () => {

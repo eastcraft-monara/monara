@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as handpose from '@tensorflow-models/handpose';
@@ -211,7 +212,7 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
         </div>
       )}
 
-      {cameraError && (
+      {cameraError && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: "fixed", inset: 0, zIndex: 99999, background: "rgba(10, 6, 8, 0.98)",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -232,7 +233,8 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
             }}>
             Reload Page
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

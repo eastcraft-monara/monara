@@ -267,16 +267,15 @@ function FloorRow({ f, onFight }) {
 // SCREEN 3 — BATTLE SCREEN
 // ============================================================
 const SINGLE_SIGNS = [
-  { word: "A", letters: ["A"] },
-  { word: "D", letters: ["D"] },
-  { word: "E", letters: ["E"] },
-  { word: "F", letters: ["F"] },
-  { word: "I", letters: ["I"] },
-  { word: "O", letters: ["O"] },
-  { word: "R", letters: ["R"] },
-  { word: "S", letters: ["S"] },
-  { word: "T", letters: ["T"] },
-  { word: "W", letters: ["W"] }
+  { word: "A", letters: ["A"] }, { word: "B", letters: ["B"] }, { word: "C", letters: ["C"] },
+  { word: "D", letters: ["D"] }, { word: "E", letters: ["E"] }, { word: "F", letters: ["F"] },
+  { word: "G", letters: ["G"] }, { word: "H", letters: ["H"] }, { word: "I", letters: ["I"] },
+  { word: "J", letters: ["J"] }, { word: "K", letters: ["K"] }, { word: "L", letters: ["L"] },
+  { word: "M", letters: ["M"] }, { word: "N", letters: ["N"] }, { word: "O", letters: ["O"] },
+  { word: "P", letters: ["P"] }, { word: "Q", letters: ["Q"] }, { word: "R", letters: ["R"] },
+  { word: "S", letters: ["S"] }, { word: "T", letters: ["T"] }, { word: "U", letters: ["U"] },
+  { word: "V", letters: ["V"] }, { word: "W", letters: ["W"] }, { word: "X", letters: ["X"] },
+  { word: "Y", letters: ["Y"] }, { word: "Z", letters: ["Z"] }
 ];
 
 const WORD_SIGNS = [
@@ -286,7 +285,7 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
@@ -306,6 +305,25 @@ function BattleScreen({ go }) {
   const [ePose, setEPose] = useState("idle");
   const [fx, setFx] = useState(null); // {side, txt}
   const [modelReady, setModelReady] = useState(false);
+
+  // Submit round result when someone dies in PvP
+  useEffect(() => {
+    if (gameMode === 'pvp' && (monsterHP === 0 || playerHP === 0)) {
+      submitRoundResult(playerHP, 1);
+    }
+  }, [monsterHP, playerHP, gameMode, submitRoundResult]);
+
+  // Reset HP when a new round starts in PvP
+  useEffect(() => {
+    if (gameMode === 'pvp' && mpStatus === 'active') {
+      setPlayerHP(100);
+      setMonsterHP(100);
+      setTimer(10);
+      setSpellIdx(0);
+      setConf(0);
+      triggerAction('reset_match');
+    }
+  }, [mpRound, mpStatus, gameMode, triggerAction]);
 
   const activeSigns = currentFloor >= 8 ? WORD_SIGNS : SINGLE_SIGNS;
   const sign = activeSigns[signIdx % activeSigns.length];
@@ -451,16 +469,17 @@ function BattleScreen({ go }) {
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
-              <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" roundsWon={mpScores["you"] || 0} />
-              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80 }}>
-                <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 36, color: timer < 3 ? C.gestureBad : C.ash, textShadow: timer < 3 ? `0 0 10px ${C.gestureBad}` : "none", lineHeight: 1 }}>{Math.ceil(timer)}</div>
+              <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" roundsWon={mpScores["you"] || 0} showDots={gameMode === 'pvp'} />
+              
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.ashDim, letterSpacing: 2 }}>{gameMode === 'pvp' ? `ROUND ${mpRound}/3` : `FLOOR ${currentFloor}`}</div>
+                <div style={{ fontFamily: "'Cinzel', serif", fontSize: 48, fontWeight: 900, color: C.inkGold, lineHeight: 1 }}>{Math.ceil(timer)}</div>
               </div>
-              <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" roundsWon={mpScores["opp"] || 0} />
+
+              <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" roundsWon={mpScores["opp"] || 0} showDots={gameMode === 'pvp'} />
             </div>
           </div>
 
-          {/* BOTTOM SECTION: Facecams & Sign Prompt */}
           {/* BOTTOM SECTION: Facecams & Sign Prompt */}
           <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-end", pointerEvents: "auto" }}>
             
@@ -552,27 +571,44 @@ function BattleScreen({ go }) {
             marginBottom: 20, letterSpacing: 8,
             animation: monsterHP === 0 ? "float 3s ease-in-out infinite" : "none"
           }}>
-            {monsterHP === 0 ? "YOU WIN" : "DEFEATED"}
+            {gameMode === 'pvp' 
+              ? (mpStatus === 'ended' 
+                  ? (monsterHP === 0 ? "MATCH WON" : "MATCH LOST") 
+                  : (monsterHP === 0 ? "ROUND WON" : "ROUND LOST"))
+              : (monsterHP === 0 ? "YOU WIN" : "DEFEATED")
+            }
           </h1>
           
           <div style={{
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, color: C.ash, marginBottom: 40,
             textAlign: "center", maxWidth: 400
           }}>
-            {monsterHP === 0 
-              ? `+1,240 $MONARA`
-              : `−524 $MONARA · 0.1% burned forever`}
+            {gameMode === 'pvp'
+              ? (mpStatus === 'ended' ? (monsterHP === 0 ? "You claimed the pot!" : "Your bet was lost.") : "Waiting for next round...")
+              : (monsterHP === 0 
+                ? `+1,240 $MONARA`
+                : `−524 $MONARA · 0.1% burned forever`)}
           </div>
 
           <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
-            {monsterHP === 0 && <GoldBtn onClick={() => {
+            {gameMode !== 'pvp' && monsterHP === 0 && <GoldBtn onClick={() => {
               clearFloor(currentFloor);
               const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
               setCurrentFloor(nextF);
-              go("map");
+              setPlayerHP(100);
+              setMonsterHP(100 + ((nextF - 1) * 25));
+              setTimer(10);
+              setSpellIdx(0);
+              triggerAction('reset_match');
             }}>Next Fight →</GoldBtn>}
-            {playerHP === 0 && <RedBtn onClick={() => go("battle")}>Rematch</RedBtn>}
-            <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>
+            {gameMode !== 'pvp' && playerHP === 0 && <RedBtn onClick={() => {
+              setPlayerHP(100);
+              setMonsterHP(maxMonsterHP);
+              setTimer(10);
+              setSpellIdx(0);
+              triggerAction('reset_match');
+            }}>Rematch</RedBtn>}
+            {(gameMode !== 'pvp' || mpStatus === 'ended') && <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>}
           </div>
         </div>
       )}
@@ -580,7 +616,7 @@ function BattleScreen({ go }) {
   );
 }
 
-function Combatant({ name, hp, max, color, align, roundsWon = 0 }) {
+function Combatant({ name, hp, max, color, align, roundsWon = 0, showDots = false }) {
   return (
     <div style={{ flex: 1, textAlign: align }}>
       <div style={{ display: "flex", justifyContent: align === "right" ? "flex-end" : "flex-start",
@@ -594,10 +630,12 @@ function Combatant({ name, hp, max, color, align, roundsWon = 0 }) {
       <div style={{ marginBottom: 6 }}>
         <Bar value={hp} max={max} color={color} glow height={18} flipDrain={align === "right"} />
       </div>
-      <div style={{ display: "flex", gap: 6, justifyContent: align === "right" ? "flex-end" : "flex-start" }}>
-        <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 1 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
-        <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 2 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
-      </div>
+      {showDots && (
+        <div style={{ display: "flex", gap: 6, justifyContent: align === "right" ? "flex-end" : "flex-start" }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 1 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 2 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
+        </div>
+      )}
     </div>
   );
 }
