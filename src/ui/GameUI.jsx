@@ -318,7 +318,7 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentAction } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
@@ -371,6 +371,28 @@ function BattleScreen({ go }) {
     }, 100);
     return () => clearInterval(id);
   }, [signIdx, modelReady, gameMode, mpStatus]);
+
+  // Listen for opponent actions in real-time
+  useEffect(() => {
+    if (!opponentAction || gameMode !== 'pvp') return;
+    if (opponentAction.type === 'attack') {
+      // Opponent completed a sign, we take damage!
+      const dmg = 28; 
+      setPlayerHP(p => Math.max(0, p - dmg));
+      setShake(true); setTimeout(() => setShake(false), 500);
+      setFx({ side: "player", txt: `-${dmg}` });
+      setPPose("knock");
+      setEPose("lunge");
+      setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+    } else if (opponentAction.type === 'hurt') {
+      // Opponent missed/failed timer, they take penalty!
+      const dmg = 20; 
+      setMonsterHP(m => Math.max(0, m - dmg));
+      setFx({ side: "enemy", txt: `-${dmg}` });
+      setEPose("knock");
+      setTimeout(() => { setEPose("idle"); setFx(null); }, 600);
+    }
+  }, [opponentAction, gameMode]);
 
   // Handle timeout
   useEffect(() => {
@@ -439,6 +461,7 @@ function BattleScreen({ go }) {
     const newHp = Math.max(0, monsterHP - 28);
     setMonsterHP(newHp);
     triggerAction('player_attack', { targetHp: newHp });
+    if (gameMode === 'pvp') sendHit();
     
     // Pick next random sign, avoiding repeats
     setSignIdx((prev) => {
@@ -474,6 +497,7 @@ function BattleScreen({ go }) {
   const landMiss = () => {
       takeHit();
       setTimer(10);
+      if (gameMode === 'pvp') sendMiss();
   };
 
   return (
@@ -502,14 +526,20 @@ function BattleScreen({ go }) {
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
-              <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" roundsWon={mpScores["you"] || 0} showDots={gameMode === 'pvp'} />
+              {/* YOU (Left) */}
+              <div style={{ flex: 1 }}>
+                <Combatant name="You · Samurai" hp={playerHP} max={100} color={isHost ? C.aura : C.inkRed} align="left" roundsWon={mpScores["you"] || 0} showDots={gameMode === 'pvp'} />
+              </div>
               
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.ashDim, letterSpacing: 2 }}>{gameMode === 'pvp' ? `ROUND ${mpRound}/3` : `FLOOR ${currentFloor}`}</div>
                 <div style={{ fontFamily: "'Cinzel', serif", fontSize: 48, fontWeight: 900, color: C.inkGold, lineHeight: 1 }}>{Math.ceil(timer)}</div>
               </div>
 
-              <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" roundsWon={mpScores["opp"] || 0} showDots={gameMode === 'pvp'} />
+              {/* MONSTER/OPPONENT (Right) */}
+              <div style={{ flex: 1 }}>
+                <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={isHost ? C.inkRed : C.aura} align="right" roundsWon={mpScores["opp"] || 0} showDots={gameMode === 'pvp'} />
+              </div>
             </div>
           </div>
 
@@ -706,8 +736,8 @@ function Combatant({ name, hp, max, color, align, roundsWon = 0, showDots = fals
       </div>
       {showDots && (
         <div style={{ display: "flex", gap: 6, justifyContent: align === "right" ? "flex-end" : "flex-start" }}>
-          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 1 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
-          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 2 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 1 ? color : "#000", border: `1px solid ${color}`, boxShadow: roundsWon >= 1 ? `0 0 8px ${color}` : "none" }} />
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 2 ? color : "#000", border: `1px solid ${color}`, boxShadow: roundsWon >= 2 ? `0 0 8px ${color}` : "none" }} />
         </div>
       )}
     </div>

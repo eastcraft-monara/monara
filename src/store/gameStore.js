@@ -45,9 +45,9 @@ const useGameStore = create((set, get) => ({
   mpRound: 1,
   mpScores: {},
   mpSeed: null,
-  mpWinner: null,
   mpReady: false,
   mpOpponentReady: false,
+  isHost: true,
   opponentLandmarks: null,
   opponentAction: null,
   
@@ -99,12 +99,12 @@ const useGameStore = create((set, get) => ({
       
       socketInstance.on("room_created", ({ roomId }) => {
         console.log(`[Socket] Room Created successfully: ${roomId}`);
-        set({ mpRoomId: roomId, mpStatus: 'searching' });
+        set({ mpRoomId: roomId, mpStatus: 'searching', isHost: true });
       });
       
       socketInstance.on("room_joined", ({ roomId, opponentHandle }) => {
         console.log(`[Socket] Joined Room: ${roomId}, Opponent: ${opponentHandle}`);
-        set({ mpRoomId: roomId, mpOpponent: { handle: opponentHandle }, mpStatus: 'found' });
+        set({ mpRoomId: roomId, mpOpponent: { handle: opponentHandle }, mpStatus: 'found', isHost: false });
       });
       
       socketInstance.on("opponent_joined", ({ opponentHandle }) => {
@@ -181,6 +181,14 @@ const useGameStore = create((set, get) => ({
       socketInstance.emit("player_ready", { roomId: mpRoomId });
       set({ mpReady: true });
     }
+  },
+  sendHit: () => {
+    const { mpRoomId } = get();
+    if (socketInstance && mpRoomId) socketInstance.emit("player_hit", { roomId: mpRoomId });
+  },
+  sendMiss: () => {
+    const { mpRoomId } = get();
+    if (socketInstance && mpRoomId) socketInstance.emit("player_miss", { roomId: mpRoomId });
   },
   startPvPBattle: () => {
     const { mpRoomId } = get();
