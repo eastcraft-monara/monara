@@ -153,18 +153,17 @@ export default class BattleScene extends Phaser.Scene {
       
       // Ensure we only trigger when a NEW action comes in
       if (prevState && prevState.lastAction && prevState.lastAction.timestamp === action.timestamp) return;
-      
+
       if (action.type === 'player_attack') {
         this.playPlayerAttack();
-        // Camera shake + parallax bump
-        this.cameras.main.shake(150, 0.01);
-        this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
-        this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
+        if (action.data && action.data.targetHp === 0) {
+          this.time.delayedCall(400, () => this.playDeathSequence(false));
+        }
       } else if (action.type === 'monster_attack') {
         this.playMonsterAttack();
-        this.cameras.main.shake(150, 0.01);
-        this.tweens.add({ targets: this.midLayer, x: 20, duration: 100, yoyo: true });
-        this.tweens.add({ targets: this.groundLayer, x: 40, duration: 100, yoyo: true });
+        if (action.data && action.data.targetHp === 0) {
+          this.time.delayedCall(400, () => this.playDeathSequence(true));
+        }
       }
     });
 
@@ -242,6 +241,16 @@ export default class BattleScene extends Phaser.Scene {
 
     // 2. Slash VFX & Monster recoil
     this.time.delayedCall(250, () => {
+      // Apply VFX
+      this.applyHitstop(60);
+      this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xD4A853);
+      this.doScreenFlash(0xffffff, 0.35);
+
+      // Camera shake + parallax bump
+      this.cameras.main.shake(150, 0.01);
+      this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
+      this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
+
       // Recoil
       this.tweens.add({
         targets: this.monsterSprite,
@@ -252,20 +261,19 @@ export default class BattleScene extends Phaser.Scene {
         onComplete: () => this.monsterSprite.setAngle(0)
       });
       
-      // Cool Slash VFX (White-blue arc)
-      const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 10, 120, 0xAAFFFF);
+      // Cool Slash VFX (Blue crescent arc)
+      const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 20, 150, 0x4A6FD4);
       slash.setAngle(45);
       slash.setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
         targets: slash,
-        scaleX: 8,
+        scaleX: 6,
         scaleY: 1.5,
         alpha: { from: 1, to: 0 },
-        duration: 250,
+        duration: 300,
         ease: 'Cubic.easeOut',
         onComplete: () => {
           slash.destroy();
-          this.cameras.main.shake(150, 0.01);
         }
       });
     });
@@ -303,6 +311,12 @@ export default class BattleScene extends Phaser.Scene {
 
     // 2. Claw VFX & Player recoil
     this.time.delayedCall(250, () => {
+      // Apply VFX
+      this.applyHitstop(60);
+      this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xE05252);
+      this.doScreenFlash(0xff0000, 0.2);
+      this.doCameraPunch();
+
       // Recoil
       this.tweens.add({
         targets: this.playerSprite,
@@ -313,25 +327,159 @@ export default class BattleScene extends Phaser.Scene {
         onComplete: () => this.playerSprite.setAngle(0)
       });
 
-      // Red Claw/Scratch VFX
-      const scratch = this.add.ellipse(this.playerSprite.x, this.playerSprite.y - 60, 10, 100, 0xFF4444);
-      scratch.setAngle(-45);
-      scratch.setBlendMode(Phaser.BlendModes.ADD);
-      this.tweens.add({
-        targets: scratch,
-        scaleX: 6,
-        scaleY: 1.2,
-        alpha: { from: 1, to: 0 },
-        duration: 250,
-        ease: 'Cubic.easeOut',
-        onComplete: () => scratch.destroy()
-      });
+      // Orange Claw Rake (Triple streak)
+      for(let i=0; i<3; i++) {
+        const scratch = this.add.ellipse(this.playerSprite.x + (i*15 - 15), this.playerSprite.y - 60, 10, 100, 0xE87A2A);
+        scratch.setAngle(-45 + (i*10 - 10));
+        scratch.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: scratch,
+          scaleX: 6,
+          scaleY: 1.2,
+          alpha: { from: 1, to: 0 },
+          duration: 250 + i*50,
+          ease: 'Cubic.easeOut',
+          onComplete: () => scratch.destroy()
+        });
+      }
       
-      // Screen Shake
+      // Screen Shake + parallax bump
       this.cameras.main.shake(150, 0.01);
+      this.tweens.add({ targets: this.midLayer, x: 20, duration: 100, yoyo: true });
+      this.tweens.add({ targets: this.groundLayer, x: 40, duration: 100, yoyo: true });
     });
     } catch (e) {
       // Ignore errors from destroyed scenes during Fast Refresh
+    }
+  }
+
+  // --- VFX Helpers ---
+  applyHitstop(duration) {
+    if (!this.sys || !this.sys.game || !this.scene.isActive()) return;
+    this.time.timeScale = 0.05; // near freeze
+    setTimeout(() => {
+      if (this.sys && this.sys.game && this.scene.isActive()) {
+        this.time.timeScale = 1.0;
+      }
+    }, duration);
+  }
+
+  spawnHitSpark(x, y, color) {
+    // Shards
+    for (let i = 0; i < 12; i++) {
+      const angle = Phaser.Math.Between(0, 360);
+      const rad = Phaser.Math.DegToRad(angle);
+      const dist = Phaser.Math.Between(20, 60);
+      const shard = this.add.rectangle(x, y, 15, 3, color);
+      shard.setRotation(rad);
+      shard.setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(rad) * dist,
+        y: y + Math.sin(rad) * dist,
+        scaleX: 0.1,
+        alpha: 0,
+        duration: 250,
+        ease: 'Quad.easeOut',
+        onComplete: () => shard.destroy()
+      });
+    }
+    // Ring
+    const ring = this.add.ellipse(x, y, 60, 60);
+    ring.setStrokeStyle(4, color);
+    ring.setBlendMode(Phaser.BlendModes.ADD);
+    ring.setScale(0.3);
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.4,
+      scaleY: 1.4,
+      alpha: 0,
+      duration: 400,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy()
+    });
+  }
+
+  doScreenFlash(color, alpha = 0.35) {
+    const flash = this.add.rectangle(0, 0, this.scale.width * 2, this.scale.height * 2, color);
+    flash.setAlpha(alpha);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 100,
+      onComplete: () => flash.destroy()
+    });
+  }
+
+  doCameraPunch() {
+    this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1.02,
+      duration: 60,
+      yoyo: true,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  playDeathSequence(isPlayer) {
+    const targetSprite = isPlayer ? this.playerSprite : this.monsterSprite;
+    if (!targetSprite) return;
+
+    // Slowmo
+    this.time.timeScale = 0.35;
+    setTimeout(() => {
+      if (this.sys && this.sys.game && this.scene.isActive()) {
+        this.time.timeScale = 1.0;
+      }
+    }, 250);
+
+    // Big Burst
+    this.spawnHitSpark(targetSprite.x, targetSprite.y - 60, 0xFFFFFF);
+    for (let i = 0; i < 20; i++) {
+      const angle = Phaser.Math.Between(0, 360);
+      const rad = Phaser.Math.DegToRad(angle);
+      const dist = Phaser.Math.Between(40, 100);
+      const shard = this.add.rectangle(targetSprite.x, targetSprite.y - 60, 20, 4, isPlayer ? 0xD4A853 : 0xE05252);
+      shard.setRotation(rad);
+      shard.setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: shard,
+        x: targetSprite.x + Math.cos(rad) * dist,
+        y: targetSprite.y - 60 + Math.sin(rad) * dist,
+        scaleX: 0.1,
+        alpha: 0,
+        duration: 400,
+        ease: 'Quad.easeOut',
+        onComplete: () => shard.destroy()
+      });
+    }
+
+    // Dissolve into embers
+    this.tweens.add({
+      targets: targetSprite,
+      alpha: 0,
+      y: targetSprite.y - 50,
+      duration: 800,
+      ease: 'Sine.easeOut'
+    });
+
+    // Rising Embers
+    for (let i = 0; i < 15; i++) {
+      const ember = this.add.rectangle(
+        targetSprite.x + Phaser.Math.Between(-30, 30), 
+        targetSprite.y + Phaser.Math.Between(-80, 0), 
+        4, 4, 0xFF6600
+      );
+      this.tweens.add({
+        targets: ember,
+        y: ember.y - Phaser.Math.Between(100, 200),
+        x: ember.x + Phaser.Math.Between(-50, 50),
+        alpha: 0,
+        duration: Phaser.Math.Between(600, 1200),
+        ease: 'Sine.easeOut',
+        onComplete: () => ember.destroy()
+      });
     }
   }
 

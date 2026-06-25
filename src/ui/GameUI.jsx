@@ -385,8 +385,9 @@ function BattleScreen({ go }) {
   }, [latestPrediction, targetChar, spellIdx, monsterHP, playerHP]);
 
   const landHit = () => {
-    triggerAction('player_attack');
-    setMonsterHP((h) => Math.max(0, h - 28));
+    const newHp = Math.max(0, monsterHP - 28);
+    setMonsterHP(newHp);
+    triggerAction('player_attack', { targetHp: newHp });
     
     // Pick next random sign, avoiding repeats
     setSignIdx((prev) => {
@@ -408,8 +409,9 @@ function BattleScreen({ go }) {
     setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
   };
   const takeHit = () => {
-    triggerAction('monster_attack');
-    setPlayerHP((h) => Math.max(0, h - monsterDamage));
+    const newHp = Math.max(0, playerHP - monsterDamage);
+    setPlayerHP(newHp);
+    triggerAction('monster_attack', { targetHp: newHp });
     setTimer(10);
     setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
@@ -537,13 +539,14 @@ function BattleScreen({ go }) {
       {/* Victory / Defeat Modal */}
       {(monsterHP === 0 || playerHP === 0) && (
         <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(10, 6, 8, 0.95)", zIndex: 9999,
+          position: "absolute", bottom: 0, left: 0, right: 0, height: 320,
+          background: "rgba(10, 6, 8, 0.98)", zIndex: 9999,
+          borderTop: `1px solid ${C.ashDim}44`,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           animation: "inkWipe 0.5s ease-out forwards"
         }}>
           <h1 style={{
-            fontFamily: "'Cinzel', serif", fontSize: 100, fontWeight: 900,
+            fontFamily: "'Cinzel', serif", fontSize: 72, fontWeight: 900,
             color: monsterHP === 0 ? C.inkGold : C.gestureBad,
             textShadow: `0 0 60px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
             marginBottom: 20, letterSpacing: 8,

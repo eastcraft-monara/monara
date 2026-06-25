@@ -58,8 +58,8 @@ const useGameStore = create((set, get) => ({
   setGameMode: (mode) => set({ gameMode: mode }),
   setTargetSign: (sign) => set({ targetSign: sign }),
   setGesturePrediction: (prediction) => set({ latestPrediction: prediction }),
-  triggerAction: (type) => {
-    set({ lastAction: { type, timestamp: Date.now() } });
+  triggerAction: (type, data = null) => {
+    set({ lastAction: { type, timestamp: Date.now(), data } });
     const { socketConnected, mpRoomId } = get();
     if (socketConnected && mpRoomId && socketInstance) {
       if (type === 'player_attack') socketInstance.emit('player_hit', { roomId: mpRoomId });
