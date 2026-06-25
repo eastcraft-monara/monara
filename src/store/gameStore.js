@@ -108,13 +108,24 @@ const useGameStore = create((set, get) => ({
       socketInstance = null;
     }
   },
-  createPvPRoom: (bet, playerHandle, signature) => {
+  createPvPRoom: (bet, playerHandle, signature, pubkey) => {
     set({ mpHandle: playerHandle });
-    if (socketInstance) socketInstance.emit("create_room", { bet, playerHandle, signature });
+    if (socketInstance) {
+      socketInstance.emit("create_room", { bet, playerHandle, signature, pubkey });
+    }
   },
-  joinPvPRoom: (roomId, playerHandle, signature) => {
-    set({ mpHandle: playerHandle });
-    if (socketInstance) socketInstance.emit("join_room", { roomId, playerHandle, signature });
+  getRoomInfo: (roomId, callback) => {
+    if (socketInstance) {
+      socketInstance.emit("get_room_info", roomId, callback);
+    } else {
+      callback({ error: "No socket connection" });
+    }
+  },
+  joinPvPRoom: (roomId, playerHandle, signature, pubkey) => {
+    set({ mpHandle: playerHandle, mpRoomId: roomId });
+    if (socketInstance) {
+      socketInstance.emit("join_room", { roomId, playerHandle, signature, pubkey });
+    }
   },
   startPvPBattle: () => {
     const { mpRoomId } = get();

@@ -6,6 +6,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/spl-token';
 
 import OpponentWebcamPanel from './OpponentWebcamPanel';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
@@ -668,14 +669,29 @@ function PvPScreen({ go }) {
     try {
       setIsProcessing(true);
       const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
-      if (!feeWallet) throw new Error("Fee wallet not configured");
+      const tokenCa = process.env.NEXT_PUBLIC_TOKEN_CA;
+      if (!feeWallet || !tokenCa) throw new Error("Fee wallet or Token CA not configured");
+
+      const feePubkey = new PublicKey(feeWallet);
+      const mintPubkey = new PublicKey(tokenCa);
+
+      const playerAta = await getAssociatedTokenAddress(mintPubkey, publicKey);
+      const feeAta = await getAssociatedTokenAddress(mintPubkey, feePubkey);
+
+      const amountToTransfer = bet * Math.pow(10, 6);
 
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
-          toPubkey: new PublicKey(feeWallet),
+          toPubkey: feePubkey,
           lamports: 0.02 * LAMPORTS_PER_SOL,
-        })
+        }),
+        createTransferInstruction(
+          playerAta,
+          feeAta,
+          publicKey,
+          amountToTransfer
+        )
       );
       
       const signature = await sendTransaction(tx, connection);
@@ -1090,22 +1106,48 @@ function FlameGlyph() {
 // ============================================================
 function AcceptChallengeScreen({ roomId, go }) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [roomBet, setRoomBet] = useState(null);
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
+  useEffect(() => {
+    const { connectSocket, getRoomInfo } = useGameStore.getState();
+    connectSocket();
+    setTimeout(() => {
+      getRoomInfo(roomId, (info) => {
+        if (info && info.bet) setRoomBet(info.bet);
+      });
+    }, 500);
+  }, [roomId]);
+
   const handleAccept = async () => {
-    if (!publicKey) return;
+    if (!publicKey || !roomBet) return;
     try {
       setIsProcessing(true);
       const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
-      if (!feeWallet) throw new Error("Fee wallet not configured");
+      const tokenCa = process.env.NEXT_PUBLIC_TOKEN_CA;
+      if (!feeWallet || !tokenCa) throw new Error("Fee wallet or Token CA not configured");
+
+      const feePubkey = new PublicKey(feeWallet);
+      const mintPubkey = new PublicKey(tokenCa);
+
+      const playerAta = await getAssociatedTokenAddress(mintPubkey, publicKey);
+      const feeAta = await getAssociatedTokenAddress(mintPubkey, feePubkey);
+
+      const amountToTransfer = roomBet * Math.pow(10, 6);
 
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
-          toPubkey: new PublicKey(feeWallet),
+          toPubkey: feePubkey,
           lamports: 0.02 * LAMPORTS_PER_SOL,
-        })
+        }),
+        createTransferInstruction(
+          playerAta,
+          feeAta,
+          publicKey,
+          amountToTransfer
+        )
       );
       
       const signature = await sendTransaction(tx, connection);
@@ -1135,11 +1177,13 @@ function AcceptChallengeScreen({ roomId, go }) {
             You have been challenged. Accept to match the stake. 0.02 SOL fee applies.
           </p>
           <div style={{ marginTop: 20 }}>
-            {!publicKey ? (
+            {!roomBet ? (
+              <p style={{ color: C.inkGold, fontFamily: "'IBM Plex Mono', monospace" }}>Fetching room data...</p>
+            ) : !publicKey ? (
               <WalletMultiButton />
             ) : (
               <RedBtn onClick={handleAccept}>
-                {isProcessing ? "Processing Tx..." : "Accept & Pay 0.02 SOL"}
+                {isProcessing ? "Processing Tx..." : `Accept & Pay 0.02 SOL + ${roomBet.toLocaleString()} MONARA`}
               </RedBtn>
             )}
           </div>
