@@ -923,18 +923,17 @@ function ResultBtn({ win, onClick }) {
 // ---- glyphs (inline SVG art) ----
 function TowerGlyph({ size = 100 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <g stroke={C.inkGold} strokeWidth="2" fill="none">
-        <path d="M50 8 L62 20 L38 20 Z" fill={C.inkRed} stroke={C.inkRed} />
-        <rect x="40" y="24" width="20" height="14" rx="1" />
-        <path d="M34 24 L66 24" strokeWidth="3" stroke={C.inkGold} />
-        <rect x="36" y="44" width="28" height="16" rx="1" />
-        <path d="M30 44 L70 44" strokeWidth="3" />
-        <rect x="32" y="66" width="36" height="20" rx="1" />
-        <path d="M26 66 L74 66" strokeWidth="3" />
-        <path d="M50 86 L50 92" />
-      </g>
-    </svg>
+    <img 
+      src="/assets/logo.png" 
+      alt="Eastcraft Monara"
+      style={{ 
+        width: size, 
+        height: size, 
+        filter: "invert(1)", 
+        mixBlendMode: "screen",
+        objectFit: "contain"
+      }} 
+    />
   );
 }
 
