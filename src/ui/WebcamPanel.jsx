@@ -24,6 +24,13 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
   const [model, setModel] = useState(null);
   const [ghostKey, setGhostKey] = useState(0);
   const [cameraError, setCameraError] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  useEffect(() => {
+    if (model && cameraActive && onModelReady) {
+      onModelReady();
+    }
+  }, [model, cameraActive, onModelReady]);
 
   // Restart ghost animation on target change
   useEffect(() => {
@@ -37,7 +44,6 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
         await tf.ready(); // Ensure backend is initialized
         const net = await handpose.load();
         setModel(net);
-        if (onModelReady) onModelReady();
         console.log("Handpose model loaded");
       } catch (err) {
         console.error("Failed to load handpose:", err);
@@ -144,6 +150,7 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
       
       <Webcam
         ref={webcamRef}
+        onUserMedia={() => setCameraActive(true)}
         onUserMediaError={() => setCameraError(true)}
         style={{
           position: "absolute",
@@ -196,11 +203,11 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
         ● {label}
       </div>
       
-      {!model && !cameraError && (
+      {(!model || !cameraActive) && !cameraError && (
         <div style={{ position: "absolute", inset: 0, zIndex: 13, background: "#000c",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.inkGold }}>
-          LOADING AI MODEL...
+          {!model ? "LOADING AI MODEL..." : "WAITING FOR CAMERA..."}
         </div>
       )}
 
