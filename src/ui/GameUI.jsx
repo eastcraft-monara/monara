@@ -1313,7 +1313,7 @@ export default function App() {
         {screen === "gate" && <GateScreen go={go} />}
         {screen === "map" && <MapScreen go={go} />}
         {screen === "battle" && <BattleScreen go={go} />}
-        {screen === "pvp" && <PvPScreen go={go} />}
+        {screen === "pvp" && <CreateChallengeScreen go={go} />}
         {screen === "burn" && <BurnScreen go={go} />}
         {screen === "accept_challenge" && <AcceptChallengeScreen roomId={joinId} go={go} />}
       </div>
