@@ -364,13 +364,13 @@ function BattleScreen({ go }) {
   // confidence creep + timer
   useEffect(() => {
     if (!modelReady) return; // Pause timer until AI model is fully loaded
-    if (gameMode === 'pvp' && mpStatus !== 'active') return; // Pause if waiting for PvP
+    if (gameMode === 'pvp') return; // Disable timer entirely for PvP
 
     const id = setInterval(() => {
       setTimer((t) => (t > 0 ? +(t - 0.1).toFixed(1) : 0));
     }, 100);
     return () => clearInterval(id);
-  }, [signIdx, modelReady, gameMode, mpStatus]);
+  }, [signIdx, modelReady, gameMode]);
 
   // Listen for opponent actions in real-time
   useEffect(() => {
@@ -396,16 +396,18 @@ function BattleScreen({ go }) {
 
   // Handle timeout
   useEffect(() => {
+    if (gameMode === 'pvp') return; // No timeout damage in PvP
     if (timer === 0 && playerHP > 0 && monsterHP > 0) {
       takeHit();
       setTimer(10);
     }
-  }, [timer]);
+  }, [timer, playerHP, monsterHP, gameMode]);
 
   useEffect(() => {
-    if (conf >= 0.8) setFeed("ok");
+    const requiredConf = gameMode === 'pvp' ? 0.75 : 0.8;
+    if (conf >= requiredConf) setFeed("ok");
     else setFeed("tracking");
-  }, [conf]);
+  }, [conf, gameMode]);
 
 
   // Sync target sign to store for AI/Mock engine (pass the specific letter we need)
@@ -424,11 +426,13 @@ function BattleScreen({ go }) {
     // Live update the confidence bar!
     setConf(latestPrediction.confidence);
 
-    if (latestPrediction.char === targetChar && latestPrediction.confidence >= 0.8) {
+    const requiredConf = gameMode === 'pvp' ? 0.75 : 0.8;
+    const requiredFrames = gameMode === 'pvp' ? 3 : 4;
+
+    if (latestPrediction.char === targetChar && latestPrediction.confidence >= requiredConf) {
       holdCountRef.current += 1;
       
-      // Require ~4 frames (approx 200-300ms) of sustained correct sign
-      if (holdCountRef.current >= 4) {
+      if (holdCountRef.current >= requiredFrames) {
         isProcessingRef.current = true; // Lock
         holdCountRef.current = 0; // Reset
         
@@ -581,8 +585,12 @@ function BattleScreen({ go }) {
                 </div>
                 <div style={{ width: 140 }}>
                   <MeterRow label="Conf" pct={Math.round(conf * 100)} color={conf >= 0.8 ? C.gestureOk : C.inkGold} />
-                  <div style={{ height: 6 }} />
-                  <MeterRow label="Timer" pct={(timer / 10) * 100} color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+                  {gameMode !== 'pvp' && (
+                    <>
+                      <div style={{ height: 6 }} />
+                      <MeterRow label="Timer" pct={(timer / 10) * 100} color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+                    </>
+                  )}
                 </div>
               </div>
 
