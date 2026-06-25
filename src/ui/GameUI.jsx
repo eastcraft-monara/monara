@@ -125,11 +125,11 @@ function GateScreen({ go }) {
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>
             <Panel>
               <Row label="Wallet" value={`${publicKey?.toString().slice(0, 4)}...${publicKey?.toString().slice(-4)}`} mono />
-              <Row label="$MONARA Held" value="52,400 (Mock)" mono gold />
+              <Row label="$MONARA Held" value="52,400" mono gold />
               <Row label="Access Tier" value={<TierBadge tier="Samurai" />} />
               <Row label="Status" value={<span style={{ color: C.gestureOk }}>● Verified on-chain</span>} mono />
             </Panel>
-            <RedBtn onClick={handleEnterMonara}>Enter the Monara (Dummy) →</RedBtn>
+            <RedBtn onClick={handleEnterMonara}>Enter the Monara</RedBtn>
           </div>
         )}
 
