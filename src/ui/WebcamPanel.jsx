@@ -23,6 +23,7 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
   const canvasRef = useRef(null);
   const [model, setModel] = useState(null);
   const [ghostKey, setGhostKey] = useState(0);
+  const [cameraError, setCameraError] = useState(false);
 
   // Restart ghost animation on target change
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
       
       <Webcam
         ref={webcamRef}
+        onUserMediaError={() => setCameraError(true)}
         style={{
           position: "absolute",
           marginLeft: "auto",
@@ -194,11 +196,35 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
         ● {label}
       </div>
       
-      {!model && (
+      {!model && !cameraError && (
         <div style={{ position: "absolute", inset: 0, zIndex: 13, background: "#000c",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.inkGold }}>
-          Loading AI Model...
+          LOADING AI MODEL...
+        </div>
+      )}
+
+      {cameraError && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 99999, background: "rgba(10, 6, 8, 0.98)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          fontFamily: "'IBM Plex Mono', monospace"
+        }}>
+          <h2 style={{ fontFamily: "'Cinzel', serif", color: C.inkRed, fontSize: 32, marginBottom: 16 }}>Camera Required</h2>
+          <p style={{ color: C.ashDim, maxWidth: 420, textAlign: "center", marginBottom: 32, lineHeight: 1.6, fontSize: 14 }}>
+            Monara uses your webcam to track your hand signs (ASL). All tracking runs locally in your browser — your video is never recorded or sent to a server.
+            <br/><br/>
+            Please click <strong>Allow</strong> in your browser's permission prompt, or update your site settings, then reload the page to play.
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              background: C.inkGold, color: "#000", border: "none", padding: "12px 24px",
+              fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", cursor: "pointer", borderRadius: 4,
+              fontSize: 14
+            }}>
+            Reload Page
+          </button>
         </div>
       )}
     </div>
