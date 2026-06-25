@@ -383,7 +383,10 @@ function BattleScreen({ go }) {
       const hits = opponentHitCount - prevOppHit.current;
       prevOppHit.current = opponentHitCount;
       const dmg = 28 * hits; 
-      setPlayerHP(p => Math.max(0, p - dmg));
+      const newHp = Math.max(0, playerHP - dmg);
+      setPlayerHP(newHp);
+      triggerAction('monster_attack', { targetHp: newHp });
+      
       setShake(true); setTimeout(() => setShake(false), 500);
       setFx({ side: "player", txt: `-${dmg}` });
       setPPose("knock");
@@ -395,12 +398,15 @@ function BattleScreen({ go }) {
       const misses = opponentMissCount - prevOppMiss.current;
       prevOppMiss.current = opponentMissCount;
       const dmg = 20 * misses; 
-      setMonsterHP(m => Math.max(0, m - dmg));
+      const newHp = Math.max(0, monsterHP - dmg);
+      setMonsterHP(newHp);
+      triggerAction('player_attack', { targetHp: newHp });
+      
       setFx({ side: "enemy", txt: `-${dmg}` });
       setEPose("knock");
       setTimeout(() => { setEPose("idle"); setFx(null); }, 600);
     }
-  }, [opponentHitCount, opponentMissCount, gameMode]);
+  }, [opponentHitCount, opponentMissCount, gameMode, playerHP, monsterHP, triggerAction]);
 
   // Handle timeout
   useEffect(() => {
