@@ -99,11 +99,11 @@ const useGameStore = create((set, get) => ({
       socketInstance = null;
     }
   },
-  createPvPRoom: (bet, playerHandle) => {
-    if (socketInstance) socketInstance.emit("create_room", { bet, playerHandle });
+  createPvPRoom: (bet, playerHandle, signature) => {
+    if (socketInstance) socketInstance.emit("create_room", { bet, playerHandle, signature });
   },
-  joinPvPRoom: (roomId, playerHandle) => {
-    if (socketInstance) socketInstance.emit("join_room", { roomId, playerHandle });
+  joinPvPRoom: (roomId, playerHandle, signature) => {
+    if (socketInstance) socketInstance.emit("join_room", { roomId, playerHandle, signature });
   },
   startPvPBattle: () => {
     const { mpRoomId } = get();

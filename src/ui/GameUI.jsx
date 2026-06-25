@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic';
 const GameContainer = dynamic(() => import('@/ui/GameContainer'), { ssr: false });
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useConnection } from '@solana/wallet-adapter-react';
+import { Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 import OpponentWebcamPanel from './OpponentWebcamPanel';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
@@ -108,6 +110,20 @@ function GateScreen({ go }) {
             color: C.ashDim, marginTop: 14, fontSize: 15 }}>
             Sign to Fight. Climb the Monara.
           </p>
+          {process.env.NEXT_PUBLIC_TOKEN_CA && (
+            <a 
+              href={`https://pump.fun/${process.env.NEXT_PUBLIC_TOKEN_CA}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+                color: C.inkGold, marginTop: 8, opacity: 0.8,
+                textDecoration: "underline", cursor: "pointer", display: "inline-block"
+              }}
+            >
+              CA: {process.env.NEXT_PUBLIC_TOKEN_CA}
+            </a>
+          )}
         </div>
 
         {!connected || !mounted ? (
@@ -600,55 +616,91 @@ function MeterRow({ label, pct, color, suffix }) {
 // ============================================================
 function PvPScreen({ go }) {
   const mpRoomId = useGameStore(state => state.mpRoomId);
-  const [bet, setBet] = useState(5000);
+  const [bet, setBet] = useState(30000);
   const [created, setCreated] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+
+  const handleCreate = async () => {
+    if (!publicKey) return;
+    try {
+      setIsProcessing(true);
+      const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
+      if (!feeWallet) throw new Error("Fee wallet not configured");
+
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(feeWallet),
+          lamports: 0.02 * LAMPORTS_PER_SOL,
+        })
+      );
+      
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, 'processed');
+
+      const { connectSocket, createPvPRoom } = useGameStore.getState();
+      connectSocket();
+      // Pass the signature and pubkey to the server
+      createPvPRoom(bet, "Host_" + Math.floor(Math.random() * 1000), signature, publicKey.toBase58());
+      setCreated(true);
+    } catch (err) {
+      console.error(err);
+      alert("Transaction failed: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <Stage>
       <TopBar tier="Samurai" balance="52,400" go={go} />
       <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
         <Eyebrow color={C.inkRed}>1v1 Wager</Eyebrow>
-        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30,
-          color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
-        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic", color: C.ashDim,
-          fontSize: 14, marginBottom: 26 }}>
-          Same rounds. Same signs. Highest accuracy wins 0.9% of the loser's bag. 0.1% turns to ash.
+        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
+        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
+          Stake MONARA. Winner takes the full pot. Every match burns supply via the 0.02 SOL fee.
         </p>
 
         {!created ? (
           <Panel>
-            <Eyebrow>Bet Amount · $MONARA</Eyebrow>
+            <Eyebrow>Wager Tier</Eyebrow>
             <div style={{ display: "flex", gap: 8, margin: "12px 0 6px", flexWrap: "wrap" }}>
-              {[1000, 5000, 25000, 100000].map((v) => (
+              {[
+                { name: "Skirmish", v: 5000 },
+                { name: "Duel", v: 30000 },
+                { name: "Bloodmatch", v: 100000 }
+              ].map(({ name, v }) => (
                 <button key={v} onClick={() => setBet(v)} style={{
                   fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
                   padding: "9px 14px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
                   border: `1px solid ${bet === v ? C.inkGold : "#ffffff22"}`,
                   background: bet === v ? `${C.inkGold}1a` : "transparent",
                   color: bet === v ? C.inkGold : C.ash,
-                }}>{v.toLocaleString()}</button>
+                }}>{name} · {v.toLocaleString()}</button>
               ))}
             </div>
             <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
               <Row label="Your stake" value={bet.toLocaleString() + " $MONARA"} mono gold />
-              <Row label="Challenger must match" value="Exact" mono />
-              <Row label="Zone" value="Z3 · Vocabulary" mono />
-              <Row label="Rounds" value="10" mono />
+              <Row label="SOL Fee (Auto-Burn)" value="0.02 SOL" mono color={C.burn} />
+              <Row label="Pot to winner" value={(bet * 2).toLocaleString() + " $MONARA"} mono />
             </div>
             <div style={{ marginTop: 20 }}>
-              <RedBtn onClick={() => {
-                const { connectSocket, createPvPRoom } = useGameStore.getState();
-                connectSocket();
-                createPvPRoom(bet, "Host_" + Math.floor(Math.random() * 1000));
-                setCreated(true);
-              }}>Lock Bet & Generate Link</RedBtn>
+              {!publicKey ? (
+                <WalletMultiButton />
+              ) : (
+                <RedBtn onClick={handleCreate}>
+                  {isProcessing ? "Processing Tx..." : "Pay 0.02 SOL & Generate Link"}
+                </RedBtn>
+              )}
             </div>
           </Panel>
         ) : (
           <Panel accent={C.inkGold}>
             <Eyebrow color={C.inkGold}>Challenge Live</Eyebrow>
-            <p style={{ fontFamily: "'Noto Serif', serif", color: C.ash, fontSize: 14,
-              margin: "10px 0 16px", lineHeight: 1.6 }}>
-              Drop this link in the community. First to accept locks {bet.toLocaleString()} $MONARA in escrow.
+            <p style={{ fontFamily: "'Noto Serif', serif", color: C.ash, fontSize: 14, margin: "10px 0 16px", lineHeight: 1.6 }}>
+              Drop this link in the community. First to accept locks {bet.toLocaleString()} $MONARA.
             </p>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
               color: C.inkGold, background: "#000", padding: "12px 14px", borderRadius: 4,
@@ -992,6 +1044,71 @@ function FlameGlyph() {
 }
 
 // ============================================================
+
+// ============================================================
+// SCREEN: ACCEPT CHALLENGE
+// ============================================================
+function AcceptChallengeScreen({ roomId, go }) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+
+  const handleAccept = async () => {
+    if (!publicKey) return;
+    try {
+      setIsProcessing(true);
+      const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
+      if (!feeWallet) throw new Error("Fee wallet not configured");
+
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(feeWallet),
+          lamports: 0.02 * LAMPORTS_PER_SOL,
+        })
+      );
+      
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, 'processed');
+
+      const { connectSocket, joinPvPRoom, setGameMode } = useGameStore.getState();
+      connectSocket();
+      joinPvPRoom(roomId, "Challenger_" + Math.floor(Math.random() * 1000), signature, publicKey.toBase58());
+      setGameMode("pvp");
+      go("battle");
+    } catch (err) {
+      console.error(err);
+      alert("Transaction failed: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Stage>
+      <TopBar tier="Samurai" balance="52,400" go={go} />
+      <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
+        <Panel accent={C.inkRed}>
+          <Eyebrow color={C.inkRed}>Incoming Challenge</Eyebrow>
+          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Room: {roomId}</h2>
+          <p style={{ fontFamily: "'Noto Serif', serif", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
+            You have been challenged. Accept to match the stake. 0.02 SOL fee applies.
+          </p>
+          <div style={{ marginTop: 20 }}>
+            {!publicKey ? (
+              <WalletMultiButton />
+            ) : (
+              <RedBtn onClick={handleAccept}>
+                {isProcessing ? "Processing Tx..." : "Accept & Pay 0.02 SOL"}
+              </RedBtn>
+            )}
+          </div>
+        </Panel>
+      </div>
+    </Stage>
+  );
+}
+
 // ROOT — screen navigator
 // ============================================================
 const SCREENS = [
@@ -1001,6 +1118,7 @@ const SCREENS = [
 
 export default function App() {
   const [screen, setScreen] = useState("gate");
+  const [joinId, setJoinId] = useState(null);
   const go = setScreen;
 
   useEffect(() => {
@@ -1008,11 +1126,8 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const joinRoomId = urlParams.get('join');
       if (joinRoomId) {
-        const { connectSocket, joinPvPRoom, setGameMode } = useGameStore.getState();
-        connectSocket();
-        joinPvPRoom(joinRoomId, "Challenger_" + Math.floor(Math.random() * 1000));
-        setGameMode("pvp");
-        setScreen("battle");
+        setJoinId(joinRoomId);
+        setScreen("accept_challenge");
         window.history.replaceState(null, '', '/');
       }
     }
@@ -1044,6 +1159,7 @@ export default function App() {
         {screen === "battle" && <BattleScreen go={go} />}
         {screen === "pvp" && <PvPScreen go={go} />}
         {screen === "burn" && <BurnScreen go={go} />}
+        {screen === "accept_challenge" && <AcceptChallengeScreen roomId={joinId} go={go} />}
       </div>
     </div>
   );
