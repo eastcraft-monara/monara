@@ -85,6 +85,11 @@ export default function WebcamPanel({ status, targetSign, onModelReady }) {
               // Draw Hand landmarks
               drawHand(hand[0].landmarks, ctx);
               
+              // Relay to multiplayer server
+              if (useGameStore.getState().gameMode === 'pvp') {
+                useGameStore.getState().sendLandmarks(hand[0].landmarks);
+              }
+              
               // Estimate Gesture with lower threshold to see partials
               const est = GE.estimate(hand[0].landmarks, 4.0); 
               if (est.gestures.length > 0) {

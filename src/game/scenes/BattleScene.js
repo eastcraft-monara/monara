@@ -33,50 +33,89 @@ export default class BattleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('rgba(0,0,0,0)'); // Transparent so React BG shows through
 
     // --- Start BGM ---
-    // Make sure we don't play multiple BGMs if the scene restarts
     if (this.sound.get('bgm')) this.sound.get('bgm').destroy();
     this.bgm = this.sound.add('bgm', { loop: true, volume: 0.3 });
     this.bgm.play();
 
     const w = this.scale.width;
     const h = this.scale.height;
+
+    // --- Parallax Placeholders ---
+    // Sky
+    this.skyLayer = this.add.graphics();
+    this.skyLayer.fillStyle(0x0a0f1c, 1);
+    this.skyLayer.fillRect(0, 0, w * 2, h);
+    
+    // Mid (Buildings)
+    this.midLayer = this.add.graphics();
+    this.midLayer.fillStyle(0x1a1520, 1);
+    for (let i = 0; i < 20; i++) {
+        const bx = i * 120;
+        const by = h - 220 + Math.random() * 80;
+        this.midLayer.fillRect(bx, by, 80, 250);
+        this.midLayer.fillStyle(0xe0210f, 1); // Lit windows
+        this.midLayer.fillRect(bx + 15, by + 40, 12, 16);
+        this.midLayer.fillRect(bx + 50, by + 90, 12, 16);
+        this.midLayer.fillStyle(0x1a1520, 1);
+    }
+
+    // Ground
+    this.groundLayer = this.add.graphics();
+    this.groundLayer.fillStyle(0x0a0608, 1);
+    this.groundLayer.fillRect(0, h - 90, w * 2, 90);
+    this.groundLayer.lineStyle(2, 0xffffff, 0.1);
+    this.groundLayer.beginPath();
+    this.groundLayer.moveTo(0, h - 90);
+    this.groundLayer.lineTo(w * 2, h - 90);
+    this.groundLayer.strokePath();
     
     // Position on the ground line
-    const groundY = h - 64;
+    const groundY = h - 45;
+    const gameStore = useGameStore.getState();
+    const currentFloor = gameStore.currentFloor;
+    const gameMode = gameStore.gameMode;
+    const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
 
     if (USE_SPRITESHEET) {
       this.setupAnimations();
       
-      const currentFloor = useGameStore.getState().currentFloor;
-      const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
-      
-      this.playerSprite = this.add.sprite(w * 0.2, groundY, 'samurai').setOrigin(0.5, 1);
+      this.playerSprite = this.add.sprite(w * 0.11, groundY, 'samurai').setOrigin(0.5, 1).setScale(1);
       this.playerSprite.play('samurai_idle');
       
-      this.monsterSprite = this.add.sprite(w * 0.8, groundY, 'imp').setOrigin(0.5, 1);
-      this.monsterSprite.setTint(floorData.color);
-      this.monsterSprite.play('imp_idle');
+      if (gameMode === 'pvp') {
+          this.monsterSprite = this.add.sprite(w * 0.89, groundY, 'samurai').setOrigin(0.5, 1).setScale(1);
+          this.monsterSprite.flipX = true;
+          this.monsterSprite.play('samurai_idle');
+      } else {
+          this.monsterSprite = this.add.sprite(w * 0.89, groundY, 'imp').setOrigin(0.5, 1).setScale(1);
+          this.monsterSprite.setTint(floorData.color);
+          this.monsterSprite.play('imp_idle');
+      }
     } else {
       // --- Samurai AI Sprite (Prototype) ---
-      this.playerSprite = this.add.image(w * 0.2, groundY + 16, 'samurai')
+      this.playerSprite = this.add.image(w * 0.11, groundY, 'samurai')
         .setOrigin(0.5, 1)
         .setScale(0.32);
       
-      const currentFloor = useGameStore.getState().currentFloor;
-      const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
+      if (gameMode === 'pvp') {
+          this.monsterSprite = this.add.image(w * 0.89, groundY, 'samurai')
+            .setOrigin(0.5, 1)
+            .setScale(0.32);
+          this.monsterSprite.flipX = true;
+      } else {
+          let monsterKey = 'imp';
+          if (floorData.z === 'Z1') monsterKey = 'slime';
+          else if (floorData.z === 'Z2') monsterKey = 'skeleton';
+          else if (floorData.z === 'Z3') monsterKey = 'bat';
+          else if (floorData.z === 'Z4') monsterKey = 'imp';
 
-      let monsterKey = 'imp';
-      if (floorData.z === 'Z1') monsterKey = 'slime';
-      else if (floorData.z === 'Z2') monsterKey = 'skeleton';
-      else if (floorData.z === 'Z3') monsterKey = 'bat';
-      else if (floorData.z === 'Z4') monsterKey = 'imp';
-
-      // --- Monster AI Sprite (Prototype) ---
-      this.monsterSprite = this.add.image(w * 0.8, groundY + 28, monsterKey)
-        .setOrigin(0.5, 1)
-        .setScale(0.32);
-      if (currentFloor !== 6 && currentFloor !== 4) {
-        this.monsterSprite.setTint(floorData.color);
+          // --- Monster AI Sprite (Prototype) ---
+          this.monsterSprite = this.add.image(w * 0.89, groundY, monsterKey)
+            .setOrigin(0.5, 1)
+            .setScale(0.32);
+          if (currentFloor !== 6 && currentFloor !== 4) {
+            this.monsterSprite.setTint(floorData.color);
+          }
       }
     }
 
@@ -86,7 +125,7 @@ export default class BattleScene extends Phaser.Scene {
       targets: this.playerSprite,
       scaleY: 0.31, // squish down slightly
       scaleX: 0.325, // stretch wide slightly
-      y: groundY + 18,
+      y: groundY + 2,
       duration: 1200,
       yoyo: true,
       repeat: -1,
@@ -97,8 +136,8 @@ export default class BattleScene extends Phaser.Scene {
       targets: this.monsterSprite,
       scaleY: 0.29,
       scaleX: 0.31,
-      y: groundY + 32,
-      duration: 800, // Faster breathing for the imp
+      y: groundY + 2,
+      duration: 800, // Faster breathing
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
@@ -115,8 +154,15 @@ export default class BattleScene extends Phaser.Scene {
       
       if (action.type === 'player_attack') {
         this.playPlayerAttack();
+        // Camera shake + parallax bump
+        this.cameras.main.shake(150, 0.01);
+        this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
+        this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
       } else if (action.type === 'monster_attack') {
         this.playMonsterAttack();
+        this.cameras.main.shake(150, 0.01);
+        this.tweens.add({ targets: this.midLayer, x: 20, duration: 100, yoyo: true });
+        this.tweens.add({ targets: this.groundLayer, x: 40, duration: 100, yoyo: true });
       }
     });
 

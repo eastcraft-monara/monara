@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic';
 const GameContainer = dynamic(() => import('@/ui/GameContainer'), { ssr: false });
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+
+import OpponentWebcamPanel from './OpponentWebcamPanel';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
 import WebcamPanel from '@/ui/WebcamPanel';
 
@@ -32,18 +34,22 @@ const FONTS = `
 
 // ---- shared atoms -------------------------------------------------
 
-function Bar({ value, max, color, bg = "#000", height = 14, glow }) {
+function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
     <div style={{
-      width: "100%", height, background: bg,
-      border: `1px solid ${color}55`, borderRadius: 2, overflow: "hidden",
-      position: "relative",
+      width: "100%", height, background: "#3a0d14",
+      border: `2px solid ${color}88`, borderRadius: 2, overflow: "hidden",
+      position: "relative", transform: "skewX(-20deg)",
+      boxShadow: glow ? `0 0 10px ${color}55` : "none"
     }}>
       <div style={{
-        width: `${pct}%`, height: "100%", background: color,
+        width: `${pct}%`, height: "100%", 
+        background: `linear-gradient(180deg, #D4A853 0%, ${color} 50%, #b8531f 100%)`,
         transition: "width .4s cubic-bezier(.4,0,.2,1)",
-        boxShadow: glow ? `0 0 10px ${color}` : "none",
+        position: "absolute",
+        left: flipDrain ? "auto" : 0,
+        right: flipDrain ? 0 : "auto",
       }} />
     </div>
   );
@@ -264,7 +270,7 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
@@ -401,157 +407,175 @@ function BattleScreen({ go }) {
 
   return (
     <Stage battle>
-      {/* Top Bar for battle */}
-      <div style={{ position: "absolute", top: 30, left: 30, right: 30, display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 10 }}>
-        <div>
-          <Eyebrow color={C.inkGold}>Active Battle</Eyebrow>
-          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.ash, marginTop: 4 }}>
-            Zone {floorData.z.replace("Z", "")} / Floor {floorData.n}
-          </div>
-        </div>
-        <button onClick={() => go("map")} style={ghostBtn}>Flee (Burn 50%)</button>
-      </div>
-
-      {/* combatant HP rail */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24,
-        maxWidth: 920, margin: "80px auto 22px" }}>
-        <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" />
-        <Combatant name={`${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 26,
-        maxWidth: 920, margin: "0 auto", alignItems: "start" }}>
-        {/* fighting arena — Tekken-style face off */}
-        <div style={{
-          position: "relative", minHeight: 340, borderRadius: 6,
-          background: `linear-gradient(180deg, #1a0f14 0%, ${C.bgPanel} 55%, #0a0608 100%)`,
-          border: "1px solid #ffffff10", overflow: "hidden",
-          animation: shake ? "shake .5s" : "none",
-        }}>
-          {/* PHASER 3 INJECTION */}
+      <div style={{
+        position: "relative", width: "100%", height: 640, borderRadius: 6,
+        border: "1px solid #ffffff10", overflow: "hidden",
+        animation: shake ? "shake .5s" : "none",
+      }}>
+        {/* BACKGROUND LAYER - PHASER */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
           <GameContainer />
-
-          {/* floating damage number */}
-          {fx && (
-            <div style={{
-              position: "absolute", bottom: 200,
-              left: fx.side === "enemy" ? "auto" : "16%",
-              right: fx.side === "enemy" ? "16%" : "auto",
-              fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 30,
-              color: fx.side === "enemy" ? C.inkGold : C.gestureBad,
-              textShadow: `0 0 16px ${fx.side === "enemy" ? C.inkGold : C.gestureBad}`,
-              animation: "dmgPop .55s ease-out forwards", pointerEvents: "none", zIndex: 10,
-            }}>{fx.txt}</div>
-          )}
-
-          <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, textAlign: "center",
-            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim, letterSpacing: 1, zIndex: 10 }}>
-            FLOOR {currentFloor} — {floorData.name.toUpperCase()}
-          </div>
         </div>
 
-        {/* control column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <WebcamPanel status={feed} targetSign={targetChar} onModelReady={() => setModelReady(true)} />
-
-          {/* challenge card */}
-          <div key={sign.word} style={{
-            background: C.bgPanel, border: `1px solid ${C.inkGold}55`,
-            borderRadius: 6, padding: "16px 18px",
-            boxShadow: `0 6px 30px #0008`,
-            animation: "inkWipe 0.5s cubic-bezier(0.1, 0.9, 0.2, 1) forwards"
-          }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
-              letterSpacing: 2, color: C.ashDim, marginBottom: 6 }}>PERFORM THE SIGN</div>
-              <div style={{
-                fontFamily: "'Cinzel', serif", fontSize: 42, fontWeight: 900,
-                color: C.inkGold, textShadow: `0 0 10px ${C.inkRed}`,
-                letterSpacing: 4
-              }}>
-                {/* Render word, highlight the current letter */}
-                {sign.word.split('').map((char, i) => (
-                  <span key={i} style={{ 
-                    color: i < spellIdx ? C.gestureOk : i === spellIdx ? C.inkGold : C.ashDim,
-                    textShadow: i === spellIdx ? `0 0 10px ${C.inkRed}` : 'none',
-                    opacity: i > spellIdx ? 0.5 : 1
-                  }}>
-                    {char}
-                  </span>
-                ))}
+        {/* UI OVERLAY */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 20, pointerEvents: "none" }}>
+          
+          {/* TOP SECTION: Toggle & HP Bars */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setGameMode('pve')} style={{ ...ghostBtn, borderColor: gameMode === 'pve' ? C.inkGold : '#ffffff22', color: gameMode === 'pve' ? C.inkGold : C.ashDim }}>vs MONSTER</button>
+                <button onClick={() => go("pvp")} style={{ ...ghostBtn, borderColor: gameMode === 'pvp' ? C.inkGold : '#ffffff22', color: gameMode === 'pvp' ? C.inkGold : C.ashDim }}>MULTIPLAYER</button>
               </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-              {sign.letters.map((l, i) => (
-                <span key={i} style={{
-                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600,
-                  color: C.ash, width: 26, height: 30, display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  border: "1px solid #ffffff22", borderRadius: 3, background: "#0004",
-                }}>{l}</span>
-              ))}
+              <button onClick={() => go("map")} style={ghostBtn}>Flee (Burn 50%)</button>
             </div>
 
-            <MeterRow label="Confidence" pct={Math.round(conf * 100)}
-              color={conf >= 0.8 ? C.gestureOk : C.inkGold} />
-            <div style={{ height: 10 }} />
-            <MeterRow label="Timer" pct={(timer / 10) * 100}
-              color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
+              <Combatant name="You · Samurai" hp={playerHP} max={100} color={C.aura} align="left" roundsWon={mpScores["you"] || 0} />
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80 }}>
+                <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 36, color: timer < 3 ? C.gestureBad : C.ash, textShadow: timer < 3 ? `0 0 10px ${C.gestureBad}` : "none", lineHeight: 1 }}>{Math.ceil(timer)}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.ashDim, letterSpacing: 2 }}>{gameMode === 'pvp' ? `ROUND ${mpRound}/3` : `FLOOR ${currentFloor}`}</div>
+              </div>
+              <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={C.inkRed} align="right" roundsWon={mpScores["opp"] || 0} />
+            </div>
+          </div>
+
+          {/* BOTTOM SECTION: Facecams & Sign Prompt */}
+          {/* BOTTOM SECTION: Facecams & Sign Prompt */}
+          <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-end", pointerEvents: "auto" }}>
+            
+            {/* COMBINED CENTER PANEL */}
+            <div style={{ 
+              display: "flex", 
+              background: "#110b14dd", 
+              border: `1px solid ${C.inkGold}55`, 
+              borderRadius: 6, 
+              padding: "12px", 
+              boxShadow: `0 6px 30px #000a`, 
+              backdropFilter: "blur(8px)", 
+              alignItems: "center", 
+              gap: 24 
+            }}>
+              
+              {/* LOCAL FACECAM */}
+              <div style={{ width: 150, height: 112, background: "#0008", border: `1px solid ${conf >= 0.8 ? C.gestureOk : '#ffffff33'}`, borderRadius: 4, overflow: "hidden", position: "relative", boxShadow: conf >= 0.8 ? `0 0 15px ${C.gestureOk}44` : "none" }}>
+                <div style={{ position: "absolute", top: 4, left: 4, zIndex: 20, background: conf >= 0.8 ? C.gestureOk : "#000a", color: conf >= 0.8 ? "#000" : C.ash, fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", padding: "2px 6px", borderRadius: 2, fontWeight: "bold" }}>
+                  {conf >= 0.8 ? "LOCKED" : "TRACKING"}
+                </div>
+                <div style={{ transform: "scale(0.5)", transformOrigin: "top left", width: 300, height: 225 }}>
+                  <WebcamPanel status={feed} targetSign={targetChar} onModelReady={() => setModelReady(true)} />
+                </div>
+              </div>
+
+              {/* SIGN PROMPT */}
+              <div style={{ display: "flex", alignItems: "center", gap: 30, paddingRight: 12 }}>
+                <div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 2, color: C.ashDim, marginBottom: 2 }}>SIGN</div>
+                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 38, fontWeight: 900, color: C.inkGold, textShadow: `0 0 10px ${C.inkRed}`, letterSpacing: 4 }}>
+                    {sign.word.split('').map((char, i) => (
+                      <span key={i} style={{ color: i < spellIdx ? C.gestureOk : i === spellIdx ? C.inkGold : C.ashDim, textShadow: i === spellIdx ? `0 0 10px ${C.inkRed}` : 'none', opacity: i > spellIdx ? 0.5 : 1 }}>{char}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ width: 140 }}>
+                  <MeterRow label="Conf" pct={Math.round(conf * 100)} color={conf >= 0.8 ? C.gestureOk : C.inkGold} />
+                  <div style={{ height: 6 }} />
+                  <MeterRow label="Timer" pct={(timer / 10) * 100} color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+                </div>
+              </div>
+
+            </div>
+
+            {/* OPPONENT FACECAM (Float Right) */}
+            {gameMode === 'pvp' && (
+              <div style={{ position: "absolute", right: 0, bottom: 0, width: 140, background: "#0008", border: `1px solid #ffffff33`, borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: 105, display: "flex", alignItems: "center", justifyContent: "center", color: C.ashDim, fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", position: "relative" }}>
+                  <div style={{ position: "absolute", inset: 0, opacity: 0.5, zIndex: 1 }}>
+                    <OpponentWebcamPanel />
+                  </div>
+                  <span style={{ zIndex: 2 }}>Opponent<br/>(Landmarks)</span>
+                </div>
+                <div style={{ background: "#000", padding: "4px 8px", fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.ashDim, textAlign: "center", borderTop: "1px solid #ffffff22" }}>{mpOpponent ? mpOpponent.handle : "WAITING"}</div>
+              </div>
+            )}
+
           </div>
         </div>
+
+        {/* floating damage number */}
+        {fx && (
+          <div style={{
+            position: "absolute", bottom: 260,
+            left: fx.side === "enemy" ? "auto" : "20%",
+            right: fx.side === "enemy" ? "20%" : "auto",
+            fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 40,
+            color: fx.side === "enemy" ? C.inkGold : C.gestureBad,
+            textShadow: `0 0 16px ${fx.side === "enemy" ? C.inkGold : C.gestureBad}`,
+            animation: "dmgPop .55s ease-out forwards", pointerEvents: "none", zIndex: 12,
+          }}>{fx.txt}</div>
+        )}
       </div>
 
       {/* Victory / Defeat Modal */}
       {(monsterHP === 0 || playerHP === 0) && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(10, 6, 8, 0.9)", zIndex: 9999,
+          background: "rgba(10, 6, 8, 0.95)", zIndex: 9999,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           animation: "inkWipe 0.5s ease-out forwards"
         }}>
           <h1 style={{
-            fontFamily: "'Cinzel', serif", fontSize: 80, fontWeight: 900,
+            fontFamily: "'Cinzel', serif", fontSize: 100, fontWeight: 900,
             color: monsterHP === 0 ? C.inkGold : C.gestureBad,
             textShadow: `0 0 60px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
             marginBottom: 20, letterSpacing: 8,
             animation: monsterHP === 0 ? "float 3s ease-in-out infinite" : "none"
           }}>
-            {monsterHP === 0 ? "VICTORY" : "DEFEAT"}
+            {monsterHP === 0 ? "YOU WIN" : "DEFEATED"}
           </h1>
           
           <div style={{
-            fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: C.ash, marginBottom: 40,
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, color: C.ash, marginBottom: 40,
             textAlign: "center", maxWidth: 400
           }}>
             {monsterHP === 0 
-              ? `You have cleansed Floor ${currentFloor} of its corruption.`
-              : `You have fallen on Floor ${currentFloor}. Dust yourself off and try again.`}
+              ? `+1,240 $MONARA`
+              : `−524 $MONARA · 0.1% burned forever`}
           </div>
 
-          {monsterHP === 0 && <ResultBtn win onClick={() => {
-            clearFloor(currentFloor);
-            const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
-            setCurrentFloor(nextF);
-            go("map");
-          }} />}
-          {playerHP === 0 && <ResultBtn win={false} onClick={() => go("map")} />}
+          <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
+            {monsterHP === 0 && <GoldBtn onClick={() => {
+              clearFloor(currentFloor);
+              const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
+              setCurrentFloor(nextF);
+              go("map");
+            }}>Next Fight →</GoldBtn>}
+            {playerHP === 0 && <RedBtn onClick={() => go("battle")}>Rematch</RedBtn>}
+            <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>
+          </div>
         </div>
       )}
     </Stage>
   );
 }
 
-function Combatant({ name, hp, max, color, align }) {
+function Combatant({ name, hp, max, color, align, roundsWon = 0 }) {
   return (
     <div style={{ flex: 1, textAlign: align }}>
       <div style={{ display: "flex", justifyContent: align === "right" ? "flex-end" : "flex-start",
         gap: 8, alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
-          color: C.ash, letterSpacing: .5 }}>{name}</span>
+        <span style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+          color: C.ash, letterSpacing: 1 }}>{name}</span>
         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim }}>
           {hp}/{max}
         </span>
       </div>
-      <div style={{ transform: align === "right" ? "scaleX(-1)" : "none" }}>
-        <Bar value={hp} max={max} color={color} glow height={12} />
+      <div style={{ marginBottom: 6 }}>
+        <Bar value={hp} max={max} color={color} glow height={18} flipDrain={align === "right"} />
+      </div>
+      <div style={{ display: "flex", gap: 6, justifyContent: align === "right" ? "flex-end" : "flex-start" }}>
+        <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 1 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
+        <div style={{ width: 12, height: 12, borderRadius: "50%", background: roundsWon >= 2 ? C.inkGold : "#000", border: `1px solid ${C.inkGold}` }} />
       </div>
     </div>
   );
