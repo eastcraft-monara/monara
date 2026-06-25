@@ -78,16 +78,45 @@ const useGameStore = create((set, get) => ({
   connectSocket: () => {
     if (!socketInstance) {
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:3001";
+      console.log("[Socket] Attempting to connect to:", wsUrl);
       socketInstance = io(wsUrl, { transports: ["websocket"], upgrade: false });
-      socketInstance.on("connect", () => set({ socketConnected: true }));
-      socketInstance.on("disconnect", () => set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null }));
       
-      socketInstance.on("room_created", ({ roomId }) => set({ mpRoomId: roomId, mpStatus: 'searching' }));
-      socketInstance.on("room_joined", ({ roomId, opponentHandle }) => set({ mpRoomId: roomId, mpOpponent: { handle: opponentHandle }, mpStatus: 'found' }));
-      socketInstance.on("opponent_joined", ({ opponentHandle }) => set({ mpOpponent: { handle: opponentHandle }, mpStatus: 'found' }));
+      socketInstance.on("connect", () => {
+        console.log("[Socket] Connected successfully! ID:", socketInstance.id);
+        set({ socketConnected: true });
+      });
       
-      socketInstance.on("battle_start", ({ seed, round }) => set({ mpSeed: seed, mpRound: round, mpStatus: 'active' }));
+      socketInstance.on("connect_error", (err) => {
+        console.error("[Socket] Connection Error:", err.message);
+      });
+      
+      socketInstance.on("disconnect", (reason) => {
+        console.warn("[Socket] Disconnected. Reason:", reason);
+        set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null });
+      });
+      
+      socketInstance.on("room_created", ({ roomId }) => {
+        console.log(`[Socket] Room Created successfully: ${roomId}`);
+        set({ mpRoomId: roomId, mpStatus: 'searching' });
+      });
+      
+      socketInstance.on("room_joined", ({ roomId, opponentHandle }) => {
+        console.log(`[Socket] Joined Room: ${roomId}, Opponent: ${opponentHandle}`);
+        set({ mpRoomId: roomId, mpOpponent: { handle: opponentHandle }, mpStatus: 'found' });
+      });
+      
+      socketInstance.on("opponent_joined", ({ opponentHandle }) => {
+        console.log(`[Socket] Opponent Joined: ${opponentHandle}`);
+        set({ mpOpponent: { handle: opponentHandle }, mpStatus: 'found' });
+      });
+      
+      socketInstance.on("battle_start", ({ seed, round }) => {
+        console.log(`[Socket] Battle Started! Round: ${round}, Seed: ${seed}`);
+        set({ mpSeed: seed, mpRound: round, mpStatus: 'active' });
+      });
+      
       socketInstance.on("round_resolved", ({ round, scores, winnerHandle }) => {
+        console.log(`[Socket] Round ${round} Resolved. Winner: ${winnerHandle}, Scores:`, scores);
         const { mpHandle, mpOpponent } = get();
         let youScore = 0;
         let oppScore = 0;
@@ -95,7 +124,15 @@ const useGameStore = create((set, get) => ({
         if (mpOpponent?.handle) oppScore = scores[mpOpponent.handle] || 0;
         set({ mpScores: { you: youScore, opp: oppScore }, mpRound: round });
       });
-      socketInstance.on("match_result", ({ winnerHandle, loserHandle }) => set({ mpWinner: winnerHandle, mpStatus: 'ended' }));
+      
+      socketInstance.on("match_result", ({ winnerHandle, loserHandle }) => {
+        console.log(`[Socket] Match Ended. Winner: ${winnerHandle}`);
+        set({ mpWinner: winnerHandle, mpStatus: 'ended' });
+      });
+      
+      socketInstance.on("error", (err) => {
+        console.error("[Socket] Server Error:", err.message || err);
+      });
       
       socketInstance.on("opponent_landmarks", (landmarks) => set({ opponentLandmarks: landmarks }));
       socketInstance.on("opponent_hit", () => set({ opponentAction: { type: 'attack', timestamp: Date.now() } }));
@@ -104,6 +141,7 @@ const useGameStore = create((set, get) => ({
   },
   disconnectSocket: () => {
     if (socketInstance) {
+      console.log("[Socket] Manually disconnecting socket.");
       socketInstance.disconnect();
       socketInstance = null;
     }

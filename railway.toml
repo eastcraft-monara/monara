@@ -1,0 +1,7 @@
+[build]
+builder = "npm"
+buildCommand = "npm i"
+
+[deploy]
+startCommand = "node server/index.js"
+restartPolicyType = "on_failure"

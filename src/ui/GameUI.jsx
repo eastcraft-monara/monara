@@ -106,8 +106,6 @@ function useTokenBalance() {
       }
     };
     fetchBalance();
-    const id = setInterval(fetchBalance, 10000);
-    return () => clearInterval(id);
   }, [publicKey, connection]);
 
   return balance;
@@ -707,12 +705,14 @@ function CreateChallengeScreen({ go }) {
 
   const handleCreate = async () => {
     if (!publicKey) return;
+    console.log("[Create Room] Starting room creation process...");
     try {
       setIsProcessing(true);
       const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
       const tokenCa = process.env.NEXT_PUBLIC_TOKEN_CA;
       if (!feeWallet || !tokenCa) throw new Error("Fee wallet or Token CA not configured");
 
+      console.log(`[Create Room] Target Fee Wallet: ${feeWallet}, Token CA: ${tokenCa}`);
       const feePubkey = new PublicKey(feeWallet);
       const mintPubkey = new PublicKey(tokenCa);
 
@@ -720,6 +720,7 @@ function CreateChallengeScreen({ go }) {
       const feeAta = await getAssociatedTokenAddress(mintPubkey, feePubkey);
 
       const amountToTransfer = bet * Math.pow(10, 6);
+      console.log(`[Create Room] Preparing transaction: ${bet} MONARA to ${feeWallet}`);
 
       const tx = new Transaction().add(
         SystemProgram.transfer({
@@ -735,16 +736,24 @@ function CreateChallengeScreen({ go }) {
         )
       );
       
+      console.log("[Create Room] Sending transaction to wallet...");
       const signature = await sendTransaction(tx, connection);
+      console.log("[Create Room] Transaction sent! Signature:", signature);
+      
+      console.log("[Create Room] Waiting for confirmation...");
       await connection.confirmTransaction(signature, 'processed');
+      console.log("[Create Room] Transaction confirmed!");
 
       const { connectSocket, createPvPRoom } = useGameStore.getState();
+      console.log("[Create Room] Connecting socket...");
       connectSocket();
-      // Pass the signature and pubkey to the server
-      createPvPRoom(bet, "Host_" + Math.floor(Math.random() * 1000), signature, publicKey.toBase58());
+      
+      const hostName = "Host_" + Math.floor(Math.random() * 1000);
+      console.log(`[Create Room] Emitting createPvPRoom with Handle: ${hostName}, Bet: ${bet}`);
+      createPvPRoom(bet, hostName, signature, publicKey.toBase58());
       setCreated(true);
     } catch (err) {
-      console.error(err);
+      console.error("[Create Room] ERROR:", err);
       alert("Transaction failed: " + err.message);
     } finally {
       setIsProcessing(false);
@@ -817,20 +826,22 @@ function CreateChallengeScreen({ go }) {
               color: C.inkGold, background: "#000", padding: "12px 14px", borderRadius: 4,
               border: `1px solid ${C.inkGold}44`, wordBreak: "break-all", marginBottom: 16 }}>
               <span>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/{mpRoomId || "connecting..."}</span>
-              <button 
-                onClick={() => {
-                  const link = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/${mpRoomId}`;
-                  navigator.clipboard.writeText(link);
-                  alert("Copied to clipboard!");
-                }}
-                style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}
-                title="Copy Link"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.inkGold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-              </button>
+              {mpRoomId && (
+                <button 
+                  onClick={() => {
+                    const link = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/${mpRoomId}`;
+                    navigator.clipboard.writeText(link);
+                    alert("Copied to clipboard!");
+                  }}
+                  style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}
+                  title="Copy Link"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.inkGold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <GoldBtn small onClick={() => {
