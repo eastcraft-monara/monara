@@ -270,7 +270,7 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus } = useGameStore();
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = 100 + ((currentFloor - 1) * 25);
@@ -297,12 +297,13 @@ function BattleScreen({ go }) {
   // confidence creep + timer
   useEffect(() => {
     if (!modelReady) return; // Pause timer until AI model is fully loaded
+    if (gameMode === 'pvp' && mpStatus !== 'active') return; // Pause if waiting for PvP
 
     const id = setInterval(() => {
       setTimer((t) => (t > 0 ? +(t - 0.1).toFixed(1) : 0));
     }, 100);
     return () => clearInterval(id);
-  }, [signIdx, modelReady]);
+  }, [signIdx, modelReady, gameMode, mpStatus]);
 
   // Handle timeout
   useEffect(() => {
@@ -329,6 +330,7 @@ function BattleScreen({ go }) {
   useEffect(() => {
     if (!latestPrediction) return;
     if (isProcessingRef.current) return; // Skip if already processing a hit
+    if (gameMode === 'pvp' && mpStatus !== 'active') return; // Skip if waiting for PvP
     
     // Live update the confidence bar!
     setConf(latestPrediction.confidence);
@@ -636,7 +638,7 @@ function PvPScreen({ go }) {
               <RedBtn onClick={() => {
                 const { connectSocket, createPvPRoom } = useGameStore.getState();
                 connectSocket();
-                createPvPRoom(bet, "Player1");
+                createPvPRoom(bet, "Host_" + Math.floor(Math.random() * 1000));
                 setCreated(true);
               }}>Lock Bet & Generate Link</RedBtn>
             </div>
@@ -1000,6 +1002,22 @@ const SCREENS = [
 export default function App() {
   const [screen, setScreen] = useState("gate");
   const go = setScreen;
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const joinRoomId = urlParams.get('join');
+      if (joinRoomId) {
+        const { connectSocket, joinPvPRoom, setGameMode } = useGameStore.getState();
+        connectSocket();
+        joinPvPRoom(joinRoomId, "Challenger_" + Math.floor(Math.random() * 1000));
+        setGameMode("pvp");
+        setScreen("battle");
+        window.history.replaceState(null, '', '/');
+      }
+    }
+  }, []);
+
   return (
     <div style={{ background: "#060406", minHeight: "100vh", fontSmooth: "antialiased" }}>
 

@@ -85,6 +85,7 @@ export default class BattleScene extends Phaser.Scene {
       if (gameMode === 'pvp') {
           this.monsterSprite = this.add.sprite(w * 0.89, groundY, 'samurai').setOrigin(0.5, 1).setScale(1);
           this.monsterSprite.flipX = true;
+          this.monsterSprite.setTint(0xff7777); // Red tint for opponent
           this.monsterSprite.play('samurai_idle');
       } else {
           this.monsterSprite = this.add.sprite(w * 0.89, groundY, 'imp').setOrigin(0.5, 1).setScale(1);
@@ -102,6 +103,7 @@ export default class BattleScene extends Phaser.Scene {
             .setOrigin(0.5, 1)
             .setScale(0.32);
           this.monsterSprite.flipX = true;
+          this.monsterSprite.setTint(0xff7777); // Red tint for opponent
       } else {
           let monsterKey = 'imp';
           if (floorData.z === 'Z1') monsterKey = 'slime';
