@@ -78,7 +78,7 @@ const useGameStore = create((set, get) => ({
   connectSocket: () => {
     if (!socketInstance) {
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:3001";
-      socketInstance = io(wsUrl);
+      socketInstance = io(wsUrl, { transports: ["websocket"], upgrade: false });
       socketInstance.on("connect", () => set({ socketConnected: true }));
       socketInstance.on("disconnect", () => set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null }));
       

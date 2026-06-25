@@ -765,30 +765,32 @@ function CreateChallengeScreen({ go }) {
           <Panel>
             <Eyebrow>Wager Tier</Eyebrow>
             <div style={{ display: "flex", gap: 8, margin: "12px 0 6px", flexWrap: "wrap" }}>
-                <div 
-                  onClick={() => setBet(100)}
-                  style={{ ...betOptionBtn, background: bet === 100 ? C.inkRed : "transparent" }}
-                >
-                  MIN (100)
-                </div>
-                <div 
-                  onClick={() => setBet(Math.floor(balance * 0.01))}
-                  style={{ ...betOptionBtn, background: bet === Math.floor(balance * 0.01) ? C.inkRed : "transparent" }}
-                >
-                  1% OF YOUR BAG · {Math.floor(balance * 0.01).toLocaleString()} $MONARA
-                </div>
-                <div 
-                  onClick={() => setBet(Math.floor(balance * 0.1))}
-                  style={{ ...betOptionBtn, background: bet === Math.floor(balance * 0.1) ? C.inkRed : "transparent" }}
-                >
-                  10%
-                </div>
-                <div 
-                  onClick={() => setBet(balance)}
-                  style={{ ...betOptionBtn, background: bet === balance ? C.inkRed : "transparent" }}
-                >
-                  MAX ({balance.toLocaleString()})
-                </div>
+              {[
+                { name: "Skirmish", v: 5000 },
+                { name: "Duel", v: 30000 },
+                { name: "Bloodmatch", v: 100000 }
+              ].map(({ name, v }) => (
+                <button key={v} onClick={() => setBet(v)} style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
+                  padding: "9px 14px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
+                  border: `1px solid ${bet === v ? C.inkGold : "#ffffff22"}`,
+                  background: bet === v ? `${C.inkGold}1a` : "transparent",
+                  color: bet === v ? C.inkGold : C.ash,
+                }}>{name} · {v.toLocaleString()}</button>
+              ))}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <input 
+                type="number" 
+                value={bet} 
+                onChange={(e) => setBet(Number(e.target.value) || 0)}
+                style={{
+                  background: "#000", border: `1px solid ${C.inkGold}44`, color: C.inkGold,
+                  padding: "8px 12px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 14,
+                  borderRadius: 4, width: "100%", outline: "none", boxSizing: "border-box"
+                }}
+                placeholder="Enter custom amount..."
+              />
             </div>
             <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 11 }}>
               <Row label="Your stake" value={bet.toLocaleString() + " $MONARA"} mono gold />

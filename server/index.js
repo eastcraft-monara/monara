@@ -5,7 +5,12 @@ const { Connection, PublicKey, Keypair, Transaction } = require("@solana/web3.js
 const { getAssociatedTokenAddress, createTransferInstruction } = require("@solana/spl-token");
 const bs58 = require("bs58");
 
-const server = http.createServer();
+const server = http.createServer((req, res) => {
+  if (req.url === '/') {
+    res.writeHead(200);
+    res.end('Monara PvP Socket Server Online');
+  }
+});
 const io = new Server(server, {
   cors: { origin: "*" },
 });
