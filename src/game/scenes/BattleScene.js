@@ -22,7 +22,10 @@ export default class BattleScene extends Phaser.Scene {
     } else {
       // Prototype Static Images
       this.load.image('samurai', '/assets/sprites/samurai/samurai.png');
-      this.load.image('slime', '/assets/sprites/slime.png');
+      this.load.image('slime', '/assets/sprites/slime/slime.png');
+      this.load.image('slime_atk1', '/assets/sprites/slime/slime-attack-1.png');
+      this.load.image('slime_atk2', '/assets/sprites/slime/slime-attack-2.png');
+      this.load.image('slime_atk3', '/assets/sprites/slime/slime-attack-3.png');
       this.load.image('skeleton', '/assets/sprites/skeleton.png');
       this.load.image('bat', '/assets/sprites/bat.png');
       this.load.image('imp', '/assets/sprites/imp.png');
@@ -155,7 +158,7 @@ export default class BattleScene extends Phaser.Scene {
             this.playerSprite.setTint(0xff7777); // Red tint for me (challenger)
           }
       } else {
-          let monsterKey = 'imp';
+          let monsterKey = 'slime';
           if (floorData.z === 'Z1') monsterKey = 'slime';
           else if (floorData.z === 'Z2') monsterKey = 'skeleton';
           else if (floorData.z === 'Z3') monsterKey = 'bat';
@@ -164,10 +167,7 @@ export default class BattleScene extends Phaser.Scene {
           // --- Monster AI Sprite (Prototype) ---
           this.monsterSprite = this.add.image(w * 0.75, groundY, monsterKey)
             .setOrigin(0.5, 1)
-            .setScale(0.22);
-          if (currentFloor !== 6 && currentFloor !== 4) {
-            this.monsterSprite.setTint(floorData.color);
-          }
+            .setScale(0.35);
       }
     }
 
@@ -186,10 +186,10 @@ export default class BattleScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: this.monsterSprite,
-      scaleY: 0.20,
-      scaleX: 0.21,
-      y: groundY + 2,
-      duration: 800, // Faster breathing
+      scaleY: 0.33,
+      scaleX: 0.37,
+      y: groundY + 5,
+      duration: 1200, // Gelatinous breathing
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
@@ -280,6 +280,8 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // 1. Squash & Stretch Player Attack
+    this.playerSprite.setDepth(10);
+    this.monsterSprite.setDepth(5);
     const originalX = this.playerSprite.x;
     
     // Anticipation (pull back)
@@ -303,7 +305,7 @@ export default class BattleScene extends Phaser.Scene {
             // --- TRIGGER IMPACT VFX ---
             this.sound.play('sfx_hit', { volume: 0.5 });
             this.applyHitstop(60);
-            this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xD4A853);
+            this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xCAD0D7);
             this.doScreenFlash(0xffffff, 0.35);
 
             // Camera shake + parallax bump
@@ -318,11 +320,11 @@ export default class BattleScene extends Phaser.Scene {
             
             this.tweens.add({
               targets: this.monsterSprite,
-              x: monsterStartX + 60, scaleX: 0.26, scaleY: 0.18, angle: 15,
+              x: monsterStartX + 60, scaleX: 0.45, scaleY: 0.25, angle: 15,
               duration: 100, yoyo: true, ease: 'Sine.easeOut',
               onComplete: () => {
                 this.monsterSprite.setAngle(0);
-                this.monsterSprite.setScale(0.22);
+                this.monsterSprite.setScale(0.35);
               }
             });
             // --- END IMPACT VFX ---
@@ -372,26 +374,45 @@ export default class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // 1. Squash & Stretch Monster Attack
+    // 1. Per-Frame Monster Attack (Similar to Player)
+    this.monsterSprite.setDepth(10);
+    this.playerSprite.setDepth(5);
     const originalX = this.monsterSprite.x;
     
-    // Anticipation (pull back & squash)
+    // Anticipation (pull back)
+    if (this.monsterSprite.texture.key === 'slime') {
+        this.monsterSprite.setTexture('slime_atk1');
+    }
+    
     this.tweens.add({
       targets: this.monsterSprite,
-      scaleY: 0.19, scaleX: 0.25, x: originalX + 30, angle: 5,
-      duration: 150, ease: 'Sine.easeOut',
+      x: originalX + 40, angle: 0,
+      duration: 400, ease: 'Sine.easeOut',
       onComplete: () => {
-        // Strike (stretch forward & dash)
+        // Strike (dash forward)
+        if (this.monsterSprite.texture.key === 'slime_atk1') {
+            this.monsterSprite.setTexture('slime_atk2');
+        }
+        
         this.tweens.add({
           targets: this.monsterSprite,
-          scaleY: 0.24, scaleX: 0.19, x: this.playerSprite.x + 100, angle: -30,
-          duration: 100, ease: 'Cubic.easeIn',
+          x: this.playerSprite.x + 100, angle: 0,
+          duration: 350, ease: 'Cubic.easeIn',
           onComplete: () => {
             // Recover (bounce back)
+            if (this.monsterSprite.texture.key === 'slime_atk2') {
+                this.monsterSprite.setTexture('slime_atk3');
+            }
+            
             this.tweens.add({
               targets: this.monsterSprite,
-              scaleY: 0.22, scaleX: 0.22, x: originalX, angle: 0,
-              duration: 350, ease: 'Bounce.easeOut'
+              x: originalX, angle: 0,
+              duration: 350, ease: 'Bounce.easeOut',
+              onComplete: () => {
+                  if (this.monsterSprite.texture.key === 'slime_atk3') {
+                      this.monsterSprite.setTexture('slime');
+                  }
+              }
             });
           }
         });
@@ -402,7 +423,7 @@ export default class BattleScene extends Phaser.Scene {
     this.time.delayedCall(250, () => {
       // Apply VFX
       this.applyHitstop(60);
-      this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xE87A2A);
+      this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xD8243A);
       this.doScreenFlash(0xff0000, 0.2); // red flash for taking damage
 
       // Camera shake
@@ -427,7 +448,7 @@ export default class BattleScene extends Phaser.Scene {
 
       // Orange Claw Rake (Triple streak)
       for(let i=0; i<3; i++) {
-        const scratch = this.add.ellipse(this.playerSprite.x + (i*15 - 15), this.playerSprite.y - 60, 10, 100, 0xE87A2A);
+        const scratch = this.add.ellipse(this.playerSprite.x + (i*15 - 15), this.playerSprite.y - 60, 10, 100, 0xD8243A);
         scratch.setAngle(-45 + (i*10 - 10));
         scratch.setBlendMode(Phaser.BlendModes.ADD);
         this.tweens.add({
@@ -535,7 +556,7 @@ export default class BattleScene extends Phaser.Scene {
       const angle = Phaser.Math.Between(0, 360);
       const rad = Phaser.Math.DegToRad(angle);
       const dist = Phaser.Math.Between(40, 100);
-      const shard = this.add.rectangle(targetSprite.x, targetSprite.y - 60, 20, 4, isPlayer ? 0xD4A853 : 0xE05252);
+      const shard = this.add.rectangle(targetSprite.x, targetSprite.y - 60, 20, 4, isPlayer ? 0xCAD0D7 : 0xD8243A);
       shard.setRotation(rad);
       shard.setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({

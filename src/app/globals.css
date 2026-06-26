@@ -1,22 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --bg-deep: #0D0A0E;
-  --bg-panel: #1A1520;
-  --ink-red: #C8334A;
-  --ink-gold: #D4A853;
-  --ash-white: #E8E2D9;
-  --gesture-ok: #4CAF82;
-  --gesture-bad: #E05252;
-  --aura-blue: #4A6FD4;
+  /* chrome */
+  --chrome-white:  #F4F6F9;
+  --chrome-silver: #CAD0D7;
+  --chrome-steel:  #8E959E;
+  --chrome-shadow: #4A4F57;
+  /* ink */
+  --ink-black:  #0B0C0F;
+  --ink-panel:  #14161B;
+  --ash-white:  #E8EAEE;
+  /* accent */
+  --signal-red:     #D8243A;
+  --signal-red-dim: #8E1826;
+  /* feedback */
+  --ok:  #4CAF82;
+  --bad: #E0454F;
+  
+  --aura-blue: #4A6FD4; /* keep for slash */
 }
 
 body {
-  background: var(--bg-deep);
+  background: var(--ink-black);
   color: var(--ash-white);
   font-family: Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
+}
+
+.brushed-metal {
+  background: linear-gradient(180deg, var(--chrome-silver) 0%, var(--chrome-steel) 50%, var(--chrome-shadow) 100%);
+  border-top: 1px solid var(--chrome-white);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
 }
 
 @keyframes slideDown {

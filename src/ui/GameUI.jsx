@@ -32,7 +32,7 @@ const C = {
 };
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif:ital,wght@0,400;0,600;1,400&display=swap');
+
 `;
 
 // ---- shared atoms -------------------------------------------------
@@ -41,10 +41,10 @@ function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
     <div style={{
-      width: "100%", height, background: "#3a0d14",
-      border: `2px solid ${color}88`, borderRadius: 2, overflow: "hidden",
+      width: "100%", height, background: "var(--ink-black)",
+      border: `2px solid var(--chrome-shadow)`, borderRadius: 2, overflow: "hidden",
       position: "relative", transform: "skewX(-20deg)",
-      boxShadow: glow ? `0 0 10px ${color}55` : "none"
+      boxShadow: glow ? `0 0 10px rgba(0,0,0,0.5)` : "none"
     }}>
       {/* Inner Gloss Base */}
       <div style={{
@@ -56,7 +56,7 @@ function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {
       {/* Chip Damage Trail (Slow) */}
       <div style={{
         width: `${pct}%`, height: "100%", 
-        background: `#FFFFFF`, opacity: 0.8,
+        background: `var(--signal-red)`, opacity: 0.8,
         transition: "width 1.2s ease-out",
         position: "absolute",
         left: flipDrain ? "auto" : 0,
@@ -67,13 +67,13 @@ function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {
       {/* Main Bar Fill (Fast) */}
       <div style={{
         width: `${pct}%`, height: "100%", 
-        background: `linear-gradient(180deg, #D4A853 0%, ${color} 50%, #b8531f 100%)`,
-        transition: "width 0.2s cubic-bezier(.4,0,.2,1)",
+        background: `linear-gradient(180deg, var(--chrome-silver) 0%, var(--chrome-steel) 50%, var(--chrome-shadow) 100%)`,
+        borderTop: "1px solid var(--chrome-white)",
+        transition: "width 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
         position: "absolute",
         left: flipDrain ? "auto" : 0,
         right: flipDrain ? 0 : "auto",
         zIndex: 2,
-        boxShadow: "inset 0px 4px 4px rgba(255,255,255,0.4)" // Extra gloss on the liquid
       }} />
     </div>
   );
@@ -157,10 +157,10 @@ function GateScreen({ go }) {
         <TowerGlyph size={110} />
         <div>
           <h1 style={{
-            fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 46,
+            fontFamily: "var(--font-saira)", fontWeight: 900, fontSize: 46,
             color: C.ash, margin: 0, letterSpacing: 2, lineHeight: 1,
           }}>EASTCRAFT<br /><span style={{ color: C.inkRed }}>MONARA</span></h1>
-          <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic",
+          <p style={{ fontFamily: "var(--font-saira)", fontStyle: "italic",
             color: C.ashDim, marginTop: 14, fontSize: 15 }}>
             Sign to Fight. Climb the Monara.
           </p>
@@ -243,7 +243,7 @@ function MapScreen({ go }) {
         {/* tower column */}
         <div>
           <Eyebrow>The Ascent · 8 Floors</Eyebrow>
-          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30,
+          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 30,
             color: C.ash, margin: "6px 0 22px" }}>Monara Tower</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {floors.map((f) => (
@@ -269,7 +269,7 @@ function MapScreen({ go }) {
           </Panel>
           <Panel accent={C.inkRed}>
             <Eyebrow color={C.inkRed}>Open Challenge</Eyebrow>
-            <p style={{ fontFamily: "'Noto Serif', serif", fontSize: 13,
+            <p style={{ fontFamily: "var(--font-saira)", fontSize: 13,
               color: C.ash, margin: "10px 0 14px", lineHeight: 1.6 }}>
               Drop a bet in the community. Highest ASL accuracy over the round takes the pot.
             </p>
@@ -292,14 +292,14 @@ function FloorRow({ f, onFight }) {
       border: `1px solid ${f.current ? C.inkGold + "55" : f.boss ? C.inkRed + "44" : "#ffffff10"}`,
       opacity: state === "locked" ? .42 : 1,
     }}>
-      <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 22,
+      <div style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 22,
         color: accent, textAlign: "center" }}>
         {String(f.n).padStart(2, "0")}
       </div>
       <div>
         <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
           letterSpacing: 1.5, color: C.ashDim }}>{f.z}{f.boss ? " · BOSS" : ""}</div>
-        <div style={{ fontFamily: "'Noto Serif', serif", fontSize: 16, color: C.ash }}>{f.name}</div>
+        <div style={{ fontFamily: "var(--font-saira)", fontSize: 16, color: C.ash }}>{f.name}</div>
       </div>
       <div>
         {state === "cleared" && <Tag c={C.gestureOk}>✓ Cleared</Tag>}
@@ -574,9 +574,26 @@ function BattleScreen({ go }) {
             zIndex: 50, pointerEvents: "none",
             animation: "titleCardFade 2.5s ease-in-out forwards"
           }}>
-            <img src="/assets/round_1_fight.png" style={{
-              maxWidth: "50%", maxHeight: "50%", objectFit: "contain"
-            }} alt="Round Fight" />
+            {/* Dynamic Round Text (No Logo) */}
+            <div style={{
+              fontFamily: "var(--font-saira)",
+              fontSize: "96px",
+              fontWeight: 900,
+              fontStyle: "italic",
+              textTransform: "uppercase",
+              background: "linear-gradient(180deg, var(--chrome-white) 0%, var(--chrome-silver) 50%, var(--chrome-shadow) 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 0 20px rgba(216, 36, 58, 0.5)) drop-shadow(0 0 5px var(--signal-red))",
+              textAlign: "center",
+              lineHeight: 1,
+              position: "relative",
+              zIndex: 2,
+              letterSpacing: "4px",
+              whiteSpace: "pre-line"
+            }}>
+              {gameMode === 'pvp' ? `ROUND ${mpRound || 1}\nFIGHT` : "FIGHT"}
+            </div>
           </div>
         )}
 
@@ -601,7 +618,7 @@ function BattleScreen({ go }) {
               
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: C.ashDim, letterSpacing: 2 }}>{gameMode === 'pvp' ? `ROUND ${mpRound}/3` : `FLOOR ${currentFloor}`}</div>
-                <div style={{ fontFamily: "'Cinzel', serif", fontSize: 48, fontWeight: 900, color: C.inkGold, lineHeight: 1 }}>{Math.ceil(timer)}</div>
+                <div style={{ fontFamily: "var(--font-saira)", fontSize: 48, fontWeight: 900, color: C.inkGold, lineHeight: 1 }}>{Math.ceil(timer)}</div>
               </div>
 
               {/* MONSTER/OPPONENT (Right) */}
@@ -641,7 +658,7 @@ function BattleScreen({ go }) {
               <div style={{ display: "flex", alignItems: "center", gap: 30, paddingRight: 12 }}>
                 <div>
                   <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: 2, color: C.ashDim, marginBottom: 2 }}>SIGN</div>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: 38, fontWeight: 900, color: C.inkGold, textShadow: `0 0 10px ${C.inkRed}`, letterSpacing: 4 }}>
+                  <div style={{ fontFamily: "var(--font-saira)", fontSize: 38, fontWeight: 900, color: C.inkGold, textShadow: `0 0 10px ${C.inkRed}`, letterSpacing: 4 }}>
                     {sign.word.split('').map((char, i) => (
                       <span key={i} style={{ color: i < spellIdx ? C.gestureOk : i === spellIdx ? C.inkGold : C.ashDim, textShadow: i === spellIdx ? `0 0 10px ${C.inkRed}` : 'none', opacity: i > spellIdx ? 0.5 : 1 }}>{char}</span>
                     ))}
@@ -682,7 +699,7 @@ function BattleScreen({ go }) {
             position: "absolute", bottom: 260,
             left: fx.side === "enemy" ? "auto" : "20%",
             right: fx.side === "enemy" ? "20%" : "auto",
-            fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 40,
+            fontFamily: "var(--font-saira)", fontWeight: 900, fontSize: 40,
             color: fx.side === "enemy" ? C.inkGold : C.gestureBad,
             textShadow: `0 0 16px ${fx.side === "enemy" ? C.inkGold : C.gestureBad}`,
             animation: "dmgPop .55s ease-out forwards", pointerEvents: "none", zIndex: 12,
@@ -700,7 +717,7 @@ function BattleScreen({ go }) {
           animation: "inkWipe 0.5s ease-out forwards"
         }}>
           <h1 style={{
-            fontFamily: "'Cinzel', serif", fontSize: 72, fontWeight: 900,
+            fontFamily: "var(--font-saira)", fontSize: 72, fontWeight: 900,
             color: monsterHP === 0 ? C.inkGold : C.gestureBad,
             textShadow: `0 0 60px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
             marginBottom: 20, letterSpacing: 8,
@@ -756,8 +773,8 @@ function BattleScreen({ go }) {
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           animation: "inkWipe 0.4s ease-out forwards"
         }}>
-          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>PRE-MATCH LOBBY</h2>
-          <p style={{ fontFamily: "'Noto Serif', serif", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>Both players must be ready to start</p>
+          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>PRE-MATCH LOBBY</h2>
+          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>Both players must be ready to start</p>
           
           <div style={{ display: "flex", gap: 32, marginBottom: 40 }}>
             {/* You */}
@@ -768,7 +785,7 @@ function BattleScreen({ go }) {
               </div>
             </div>
             
-            <div style={{ color: C.ashDim, alignSelf: "center", fontFamily: "'Cinzel', serif", fontSize: 20 }}>VS</div>
+            <div style={{ color: C.ashDim, alignSelf: "center", fontFamily: "var(--font-saira)", fontSize: 20 }}>VS</div>
             
             {/* Opponent */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
@@ -797,7 +814,7 @@ function Combatant({ name, hp, max, color, align, roundsWon = 0, showDots = fals
     <div style={{ flex: 1, textAlign: align }}>
       <div style={{ display: "flex", justifyContent: align === "right" ? "flex-end" : "flex-start",
         gap: 8, alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+        <span style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 16,
           color: C.ash, letterSpacing: 1 }}>{name}</span>
         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.ashDim }}>
           {hp}/{max}
@@ -916,8 +933,8 @@ function CreateChallengeScreen({ go }) {
       <TopBar tier="Samurai" balance={balance.toLocaleString()} go={go} />
       <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
         <Eyebrow color={C.inkRed}>1v1 Wager</Eyebrow>
-        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
-        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
+        <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Stake a Challenge</h2>
+        <p style={{ fontFamily: "var(--font-saira)", fontStyle: "italic", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
           Stake MONARA. Winner takes the full pot. Every match burns supply via the 0.02 SOL fee.
         </p>
 
@@ -970,7 +987,7 @@ function CreateChallengeScreen({ go }) {
         ) : (
           <Panel accent={C.inkGold}>
             <Eyebrow color={C.inkGold}>Challenge Live</Eyebrow>
-            <p style={{ fontFamily: "'Noto Serif', serif", color: C.ash, fontSize: 14, margin: "10px 0 16px", lineHeight: 1.6 }}>
+            <p style={{ fontFamily: "var(--font-saira)", color: C.ash, fontSize: 14, margin: "10px 0 16px", lineHeight: 1.6 }}>
               Drop this link in the community. First to accept locks {bet.toLocaleString()} $MONARA.
             </p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
@@ -1025,9 +1042,9 @@ function BurnScreen({ go }) {
       <div style={{ maxWidth: 460, margin: "30px auto 0", textAlign: "center",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
         <FlameGlyph />
-        <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 38,
+        <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 900, fontSize: 38,
           color: C.burn, margin: 0, letterSpacing: 2 }}>DEFEATED</h2>
-        <p style={{ fontFamily: "'Noto Serif', serif", fontStyle: "italic",
+        <p style={{ fontFamily: "var(--font-saira)", fontStyle: "italic",
           color: C.ashDim, fontSize: 15, margin: 0 }}>
           The Fire Imp held its ground. The tower takes its toll.
         </p>
@@ -1062,7 +1079,7 @@ function BurnLine({ label, amount, sub, color, ash }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
       opacity: ash ? .45 : 1, transition: "opacity 1s" }}>
-      <span style={{ fontFamily: "'Noto Serif', serif", fontSize: 14, color: C.ash }}>
+      <span style={{ fontFamily: "var(--font-saira)", fontSize: 14, color: C.ash }}>
         {label} <span style={{ color: C.ashDim, fontSize: 12 }}>· {sub}</span>
       </span>
       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600,
@@ -1097,7 +1114,7 @@ function TopBar({ tier, balance, go }) {
       <button onClick={() => go("map")} style={{ background: "none", border: "none",
         cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
         <TowerGlyph size={26} />
-        <span style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+        <span style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 16,
           color: C.ash, letterSpacing: 1 }}>MONARA</span>
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -1122,7 +1139,7 @@ function Row({ label, value, mono, gold, burn }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: C.ashDim }}>{label}</span>
       <span style={{
-        fontFamily: mono ? "'IBM Plex Mono', monospace" : "'Noto Serif', serif",
+        fontFamily: mono ? "'IBM Plex Mono', monospace" : "var(--font-saira)",
         fontSize: 13.5, color: gold ? C.inkGold : burn ? C.burn : C.ash, fontWeight: 500,
       }}>{value}</span>
     </div>
@@ -1164,7 +1181,7 @@ function RedBtn({ children, onClick, small }) {
 
 function ResultBtn({ win, onClick }) {
   return <button onClick={onClick} style={{
-    width: "100%", fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 16,
+    width: "100%", fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 16,
     padding: "14px", borderRadius: 4, cursor: "pointer", border: "none",
     color: win ? C.bgDeep : C.ash, background: win ? C.gestureOk : C.burn,
     letterSpacing: 1, marginTop: 4,
@@ -1416,8 +1433,8 @@ function AcceptChallengeScreen({ roomId, go }) {
       <div style={{ maxWidth: 540, margin: "40px auto 0" }}>
         <Panel accent={C.inkRed}>
           <Eyebrow color={C.inkRed}>Incoming Challenge</Eyebrow>
-          <h2 style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Room: {roomId}</h2>
-          <p style={{ fontFamily: "'Noto Serif', serif", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
+          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 30, color: C.ash, margin: "6px 0 8px" }}>Room: {roomId}</h2>
+          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 26 }}>
             You have been challenged. Accept to match the stake. 0.02 SOL fee applies.
           </p>
           <div style={{ marginTop: 20 }}>
