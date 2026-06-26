@@ -266,9 +266,9 @@ export default class BattleScene extends Phaser.Scene {
   playPlayerAttack() {
     try {
       if (!this.sys || !this.sys.game || !this.scene.isActive()) return;
-      this.sound.play('sfx_hit', { volume: 0.5 });
     
     if (USE_SPRITESHEET) {
+      this.sound.play('sfx_hit', { volume: 0.5 });
       this.playerSprite.play('samurai_attack');
       this.playerSprite.once('animationcomplete', () => this.playerSprite.play('samurai_idle'));
       
@@ -296,9 +296,48 @@ export default class BattleScene extends Phaser.Scene {
           x: this.monsterSprite.x - 100, angle: 0,
           duration: 350, ease: 'Cubic.easeIn',
           onComplete: () => {
-            // Post-strike pose
+            // Post-strike pose & VFX (PERFECT SYNC)
             this.playerSprite.setTexture('samurai_atk3');
-            this.playerSprite.setAngle(0); // Ensure it's not rotated
+            this.playerSprite.setAngle(0);
+            
+            // --- TRIGGER IMPACT VFX ---
+            this.sound.play('sfx_hit', { volume: 0.5 });
+            this.applyHitstop(60);
+            this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xD4A853);
+            this.doScreenFlash(0xffffff, 0.35);
+
+            // Camera shake + parallax bump
+            this.cameras.main.shake(200, 0.015);
+            this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
+            this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
+
+            // Monster Recoil
+            const monsterStartX = this.monsterSprite.x;
+            this.monsterSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+            this.time.delayedCall(50, () => this.monsterSprite.clearTint());
+            
+            this.tweens.add({
+              targets: this.monsterSprite,
+              x: monsterStartX + 60, scaleX: 0.26, scaleY: 0.18, angle: 15,
+              duration: 100, yoyo: true, ease: 'Sine.easeOut',
+              onComplete: () => {
+                this.monsterSprite.setAngle(0);
+                this.monsterSprite.setScale(0.22);
+              }
+            });
+            // --- END IMPACT VFX ---
+
+            // Cool Slash VFX (Blue crescent arc)
+            const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 20, 150, 0x4A6FD4);
+            slash.setAngle(45);
+            slash.setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({
+              targets: slash,
+              scaleX: 6, scaleY: 1.5, alpha: { from: 1, to: 0 },
+              duration: 300, ease: 'Cubic.easeOut',
+              onComplete: () => slash.destroy()
+            });
+
             this.time.delayedCall(300, () => { // Hold pose 3 longer
                 // Recover (bounce back)
                 this.playerSprite.setTexture('samurai');
@@ -311,45 +350,6 @@ export default class BattleScene extends Phaser.Scene {
           }
         });
       }
-    });
-
-    // 2. Slash VFX & Monster recoil (timed with the slower strike)
-    this.time.delayedCall(750, () => {
-      // Apply VFX
-      this.applyHitstop(60);
-      this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xD4A853);
-      this.doScreenFlash(0xffffff, 0.35);
-
-      // Camera shake + parallax bump
-      this.cameras.main.shake(200, 0.015);
-      this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
-      this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
-
-      // Monster Recoil (Squash horizontally, fall back)
-      const monsterStartX = this.monsterSprite.x;
-      this.monsterSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL); // Flash white
-      this.time.delayedCall(50, () => this.monsterSprite.clearTint());
-      
-      this.tweens.add({
-        targets: this.monsterSprite,
-        x: monsterStartX + 60, scaleX: 0.26, scaleY: 0.18, angle: 15,
-        duration: 100, yoyo: true, ease: 'Sine.easeOut',
-        onComplete: () => {
-          this.monsterSprite.setAngle(0);
-          this.monsterSprite.setScale(0.22);
-        }
-      });
-      
-      // Cool Slash VFX (Blue crescent arc)
-      const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 20, 150, 0x4A6FD4);
-      slash.setAngle(45);
-      slash.setBlendMode(Phaser.BlendModes.ADD);
-      this.tweens.add({
-        targets: slash,
-        scaleX: 6, scaleY: 1.5, alpha: { from: 1, to: 0 },
-        duration: 300, ease: 'Cubic.easeOut',
-        onComplete: () => slash.destroy()
-      });
     });
     } catch (e) {
       // Ignore errors from destroyed scenes during Fast Refresh
