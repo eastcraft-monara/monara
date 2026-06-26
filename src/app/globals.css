@@ -76,3 +76,10 @@ button:focus-visible {
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce){ *{animation-duration:.01ms!important} }
+
+@keyframes titleCardFade {
+  0% { opacity: 0; transform: scale(1.5) translateY(20px); filter: blur(10px); }
+  10% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+  80% { opacity: 1; transform: scale(1.05) translateY(0); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.5) translateY(-20px); filter: blur(10px); }
+}

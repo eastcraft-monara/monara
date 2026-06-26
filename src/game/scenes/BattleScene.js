@@ -21,11 +21,15 @@ export default class BattleScene extends Phaser.Scene {
       this.load.atlas('imp', '/assets/sprites/imp_sheet.png', '/assets/sprites/imp_atlas.json');
     } else {
       // Prototype Static Images
-      this.load.image('samurai', '/assets/sprites/samurai.png');
+      this.load.image('samurai', '/assets/sprites/samurai/samurai.png');
       this.load.image('slime', '/assets/sprites/slime.png');
       this.load.image('skeleton', '/assets/sprites/skeleton.png');
       this.load.image('bat', '/assets/sprites/bat.png');
       this.load.image('imp', '/assets/sprites/imp.png');
+      this.load.image('stage_bg', '/assets/stage_bg.png');
+      this.load.image('samurai_atk1', '/assets/sprites/samurai/samurai-attack-1.png');
+      this.load.image('samurai_atk2', '/assets/sprites/samurai/samurai-attack-2.png');
+      this.load.image('samurai_atk3', '/assets/sprites/samurai/samurai-attack-3.png');
     }
   }
 
@@ -40,37 +44,75 @@ export default class BattleScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
 
-    // --- Parallax Placeholders ---
-    // Sky
-    this.skyLayer = this.add.graphics();
-    this.skyLayer.fillStyle(0x0a0f1c, 1);
-    this.skyLayer.fillRect(0, 0, w * 2, h);
-    
-    // Mid (Buildings)
-    this.midLayer = this.add.graphics();
-    this.midLayer.fillStyle(0x1a1520, 1);
-    for (let i = 0; i < 20; i++) {
-        const bx = i * 120;
-        const by = h - 220 + Math.random() * 80;
-        this.midLayer.fillRect(bx, by, 80, 250);
-        this.midLayer.fillStyle(0xe0210f, 1); // Lit windows
-        this.midLayer.fillRect(bx + 15, by + 40, 12, 16);
-        this.midLayer.fillRect(bx + 50, by + 90, 12, 16);
-        this.midLayer.fillStyle(0x1a1520, 1);
+    // --- Post-Processing Pass (Phase 1) ---
+    if (this.cameras.main.postFX) {
+        // Vignette (darken edges to focus on fighters)
+        this.cameras.main.postFX.addVignette(0.5, 0.5, 0.9, 0.4);
+        
+        // Bloom (make lights and UI elements glow slightly)
+        this.cameras.main.postFX.addBloom(0xffffff, 1, 1, 0.8, 1.2);
+        
+        // Color Grade (Cinematic contrast and saturation)
+        const colorMatrix = this.cameras.main.postFX.addColorMatrix();
+        colorMatrix.contrast(1.2);
+        colorMatrix.saturation(1.1);
     }
 
-    // Ground
-    this.groundLayer = this.add.graphics();
-    this.groundLayer.fillStyle(0x0a0608, 1);
-    this.groundLayer.fillRect(0, h - 90, w * 2, 90);
-    this.groundLayer.lineStyle(2, 0xffffff, 0.1);
-    this.groundLayer.beginPath();
-    this.groundLayer.moveTo(0, h - 90);
-    this.groundLayer.lineTo(w * 2, h - 90);
-    this.groundLayer.strokePath();
+    // --- High-Quality 2D Stage Background ---
+    // Create containers first so existing tween logic doesn't crash
+    this.skyLayer = this.add.container();
+    this.midLayer = this.add.container(); 
+    this.groundLayer = this.add.container();
+
+    this.bgImage = this.add.image(w/2, h/2, 'stage_bg').setOrigin(0.5, 0.5);
+    // Scale it to cover the screen, with 10% padding for camera shake and parallax
+    const bgScale = Math.max(w / this.bgImage.width, h / this.bgImage.height);
+    this.bgImage.setScale(bgScale * 1.1);
     
-    // Position on the ground line
-    const groundY = h - 45;
+    // Add the image to midLayer so it gets parallax bumps during attacks
+    this.midLayer.add(this.bgImage);
+
+    // Add a slight dark gradient overlay at the bottom for character grounding
+    const gradient = this.add.graphics();
+    gradient.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.8, 0.8);
+    gradient.fillRect(0, h - 150, w, 150);
+    this.groundLayer.add(gradient);
+
+    // --- Living Detail: Embers (Phase 2) ---
+    for (let i = 0; i < 20; i++) {
+        const ember = this.add.rectangle(Phaser.Math.Between(0, w * 2), Phaser.Math.Between(0, h), 3, 3, 0xff6600, 0.4);
+        ember.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+            targets: ember,
+            y: '-=' + Phaser.Math.Between(50, 150),
+            x: '+=' + Phaser.Math.Between(-30, 30),
+            alpha: { from: 0.4, to: 0 },
+            duration: Phaser.Math.Between(4000, 8000),
+            repeat: -1,
+            onRepeat: (tween, target) => {
+                target.y = h;
+                target.x = Phaser.Math.Between(0, w * 2);
+            }
+        });
+    }
+    
+    // Position on the ground line - lower for the new background
+    const groundY = h - 15;
+    
+    // --- Contact Shadows (Phase 2) ---
+    this.playerShadow = this.add.ellipse(w * 0.25, groundY, 45, 12, 0x000000, 0.7);
+    this.monsterShadow = this.add.ellipse(w * 0.75, groundY, 45, 12, 0x000000, 0.7);
+
+    // --- Camera Idle Drift / Breathing (Phase 2) ---
+    this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1.015,
+      duration: 3500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
     const gameStore = useGameStore.getState();
     const currentFloor = gameStore.currentFloor;
     const gameMode = gameStore.gameMode;
@@ -98,14 +140,14 @@ export default class BattleScene extends Phaser.Scene {
       }
     } else {
       // --- Samurai AI Sprite (Prototype) ---
-      this.playerSprite = this.add.image(w * 0.11, groundY, 'samurai')
+      this.playerSprite = this.add.image(w * 0.25, groundY, 'samurai')
         .setOrigin(0.5, 1)
-        .setScale(0.32);
+        .setScale(0.22);
       
       if (gameMode === 'pvp') {
-          this.monsterSprite = this.add.image(w * 0.89, groundY, 'samurai')
+          this.monsterSprite = this.add.image(w * 0.75, groundY, 'samurai')
             .setOrigin(0.5, 1)
-            .setScale(0.32);
+            .setScale(0.22);
           this.monsterSprite.flipX = true;
           if (gameStore.isHost) {
             this.monsterSprite.setTint(0xff7777); // Red tint for opponent
@@ -120,9 +162,9 @@ export default class BattleScene extends Phaser.Scene {
           else if (floorData.z === 'Z4') monsterKey = 'imp';
 
           // --- Monster AI Sprite (Prototype) ---
-          this.monsterSprite = this.add.image(w * 0.89, groundY, monsterKey)
+          this.monsterSprite = this.add.image(w * 0.75, groundY, monsterKey)
             .setOrigin(0.5, 1)
-            .setScale(0.32);
+            .setScale(0.22);
           if (currentFloor !== 6 && currentFloor !== 4) {
             this.monsterSprite.setTint(floorData.color);
           }
@@ -133,8 +175,8 @@ export default class BattleScene extends Phaser.Scene {
     if (!USE_SPRITESHEET) {
     this.tweens.add({
       targets: this.playerSprite,
-      scaleY: 0.31, // squish down slightly
-      scaleX: 0.325, // stretch wide slightly
+      scaleY: 0.21, // squish down slightly
+      scaleX: 0.225, // stretch wide slightly
       y: groundY + 2,
       duration: 1200,
       yoyo: true,
@@ -144,8 +186,8 @@ export default class BattleScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: this.monsterSprite,
-      scaleY: 0.29,
-      scaleX: 0.31,
+      scaleY: 0.20,
+      scaleX: 0.21,
       y: groundY + 2,
       duration: 800, // Faster breathing
       yoyo: true,
@@ -237,38 +279,65 @@ export default class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // 1. Player attacks (lunge right + lean forward to the enemy)
+    // 1. Squash & Stretch Player Attack
     const originalX = this.playerSprite.x;
+    
+    // Anticipation (pull back)
+    this.playerSprite.setTexture('samurai_atk1');
     this.tweens.add({
       targets: this.playerSprite,
-      x: this.monsterSprite.x - 100, // Dash all the way to the monster
-      angle: 30, // Lean forward dramatically
-      duration: 250,
-      yoyo: true,
-      ease: 'Cubic.easeIn',
-      onComplete: () => this.playerSprite.setAngle(0) // reset just in case
+      x: originalX - 40, angle: 0,
+      duration: 400, ease: 'Sine.easeOut',
+      onComplete: () => {
+        // Strike (dash forward)
+        this.playerSprite.setTexture('samurai_atk2');
+        this.tweens.add({
+          targets: this.playerSprite,
+          x: this.monsterSprite.x - 100, angle: 0,
+          duration: 350, ease: 'Cubic.easeIn',
+          onComplete: () => {
+            // Post-strike pose
+            this.playerSprite.setTexture('samurai_atk3');
+            this.playerSprite.setAngle(0); // Ensure it's not rotated
+            this.time.delayedCall(300, () => { // Hold pose 3 longer
+                // Recover (bounce back)
+                this.playerSprite.setTexture('samurai');
+                this.tweens.add({
+                  targets: this.playerSprite,
+                  x: originalX, angle: 0,
+                  duration: 600, ease: 'Bounce.easeOut'
+                });
+            });
+          }
+        });
+      }
     });
 
-    // 2. Slash VFX & Monster recoil
-    this.time.delayedCall(250, () => {
+    // 2. Slash VFX & Monster recoil (timed with the slower strike)
+    this.time.delayedCall(750, () => {
       // Apply VFX
       this.applyHitstop(60);
       this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xD4A853);
       this.doScreenFlash(0xffffff, 0.35);
 
       // Camera shake + parallax bump
-      this.cameras.main.shake(150, 0.01);
+      this.cameras.main.shake(200, 0.015);
       this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
       this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
 
-      // Recoil
+      // Monster Recoil (Squash horizontally, fall back)
+      const monsterStartX = this.monsterSprite.x;
+      this.monsterSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL); // Flash white
+      this.time.delayedCall(50, () => this.monsterSprite.clearTint());
+      
       this.tweens.add({
         targets: this.monsterSprite,
-        x: this.monsterSprite.x + 40,
-        angle: 10,
-        duration: 100,
-        yoyo: true,
-        onComplete: () => this.monsterSprite.setAngle(0)
+        x: monsterStartX + 60, scaleX: 0.26, scaleY: 0.18, angle: 15,
+        duration: 100, yoyo: true, ease: 'Sine.easeOut',
+        onComplete: () => {
+          this.monsterSprite.setAngle(0);
+          this.monsterSprite.setScale(0.22);
+        }
       });
       
       // Cool Slash VFX (Blue crescent arc)
@@ -277,14 +346,9 @@ export default class BattleScene extends Phaser.Scene {
       slash.setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
         targets: slash,
-        scaleX: 6,
-        scaleY: 1.5,
-        alpha: { from: 1, to: 0 },
-        duration: 300,
-        ease: 'Cubic.easeOut',
-        onComplete: () => {
-          slash.destroy();
-        }
+        scaleX: 6, scaleY: 1.5, alpha: { from: 1, to: 0 },
+        duration: 300, ease: 'Cubic.easeOut',
+        onComplete: () => slash.destroy()
       });
     });
     } catch (e) {
@@ -308,33 +372,57 @@ export default class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // 1. Monster attacks (lunge left + lean forward)
+    // 1. Squash & Stretch Monster Attack
+    const originalX = this.monsterSprite.x;
+    
+    // Anticipation (pull back & squash)
     this.tweens.add({
       targets: this.monsterSprite,
-      x: this.playerSprite.x + 100, // Dash all the way to the player
-      angle: -30, // Lean forward dramatically
-      duration: 250,
-      yoyo: true,
-      ease: 'Cubic.easeIn',
-      onComplete: () => this.monsterSprite.setAngle(0)
+      scaleY: 0.19, scaleX: 0.25, x: originalX + 30, angle: 5,
+      duration: 150, ease: 'Sine.easeOut',
+      onComplete: () => {
+        // Strike (stretch forward & dash)
+        this.tweens.add({
+          targets: this.monsterSprite,
+          scaleY: 0.24, scaleX: 0.19, x: this.playerSprite.x + 100, angle: -30,
+          duration: 100, ease: 'Cubic.easeIn',
+          onComplete: () => {
+            // Recover (bounce back)
+            this.tweens.add({
+              targets: this.monsterSprite,
+              scaleY: 0.22, scaleX: 0.22, x: originalX, angle: 0,
+              duration: 350, ease: 'Bounce.easeOut'
+            });
+          }
+        });
+      }
     });
 
     // 2. Claw VFX & Player recoil
     this.time.delayedCall(250, () => {
       // Apply VFX
       this.applyHitstop(60);
-      this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xE05252);
-      this.doScreenFlash(0xff0000, 0.2);
-      this.doCameraPunch();
+      this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xE87A2A);
+      this.doScreenFlash(0xff0000, 0.2); // red flash for taking damage
 
-      // Recoil
+      // Camera shake
+      this.cameras.main.shake(200, 0.015);
+      this.tweens.add({ targets: this.midLayer, x: 20, duration: 100, yoyo: true });
+      this.tweens.add({ targets: this.groundLayer, x: 40, duration: 100, yoyo: true });
+
+      // Player Recoil (Squash horizontally, fall back)
+      const playerStartX = this.playerSprite.x;
+      this.playerSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL); // Flash white
+      this.time.delayedCall(50, () => this.playerSprite.clearTint());
+
       this.tweens.add({
         targets: this.playerSprite,
-        x: this.playerSprite.x - 40,
-        angle: -10,
-        duration: 100,
-        yoyo: true,
-        onComplete: () => this.playerSprite.setAngle(0)
+        x: playerStartX - 60, scaleX: 0.26, scaleY: 0.18, angle: -15,
+        duration: 100, yoyo: true, ease: 'Sine.easeOut',
+        onComplete: () => {
+          this.playerSprite.setAngle(0);
+          this.playerSprite.setScale(0.22);
+        }
       });
 
       // Orange Claw Rake (Triple streak)
@@ -353,10 +441,7 @@ export default class BattleScene extends Phaser.Scene {
         });
       }
       
-      // Screen Shake + parallax bump
-      this.cameras.main.shake(150, 0.01);
-      this.tweens.add({ targets: this.midLayer, x: 20, duration: 100, yoyo: true });
-      this.tweens.add({ targets: this.groundLayer, x: 40, duration: 100, yoyo: true });
+      // Screen Shake + parallax bump is already handled above
     });
     } catch (e) {
       // Ignore errors from destroyed scenes during Fast Refresh

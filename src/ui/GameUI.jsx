@@ -46,13 +46,34 @@ function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {
       position: "relative", transform: "skewX(-20deg)",
       boxShadow: glow ? `0 0 10px ${color}55` : "none"
     }}>
+      {/* Inner Gloss Base */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        boxShadow: "inset 0 4px 6px rgba(255,255,255,0.15)",
+        zIndex: 10
+      }} />
+      
+      {/* Chip Damage Trail (Slow) */}
       <div style={{
         width: `${pct}%`, height: "100%", 
-        background: `linear-gradient(180deg, #D4A853 0%, ${color} 50%, #b8531f 100%)`,
-        transition: "width .4s cubic-bezier(.4,0,.2,1)",
+        background: `#FFFFFF`, opacity: 0.8,
+        transition: "width 1.2s ease-out",
         position: "absolute",
         left: flipDrain ? "auto" : 0,
         right: flipDrain ? 0 : "auto",
+        zIndex: 1
+      }} />
+
+      {/* Main Bar Fill (Fast) */}
+      <div style={{
+        width: `${pct}%`, height: "100%", 
+        background: `linear-gradient(180deg, #D4A853 0%, ${color} 50%, #b8531f 100%)`,
+        transition: "width 0.2s cubic-bezier(.4,0,.2,1)",
+        position: "absolute",
+        left: flipDrain ? "auto" : 0,
+        right: flipDrain ? 0 : "auto",
+        zIndex: 2,
+        boxShadow: "inset 0px 4px 4px rgba(255,255,255,0.4)" // Extra gloss on the liquid
       }} />
     </div>
   );
@@ -326,6 +347,21 @@ function BattleScreen({ go }) {
 
   const [playerHP, setPlayerHP] = useState(100);
   const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
+  const [showRoundCard, setShowRoundCard] = useState(true);
+
+  // Trigger title card on new round/floor
+  useEffect(() => {
+    setShowRoundCard(true);
+  }, [mpRound, currentFloor]);
+
+  // Hide title card after 2.5s
+  useEffect(() => {
+    if (showRoundCard) {
+      const t = setTimeout(() => setShowRoundCard(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [showRoundCard]);
+
   const [signIdx, setSignIdx] = useState(() => Math.floor(Math.random() * 100)); // Start random
   const [spellIdx, setSpellIdx] = useState(0);
   const [conf, setConf] = useState(0.46);
@@ -530,6 +566,20 @@ function BattleScreen({ go }) {
           <GameContainer />
         </div>
 
+        {/* TITLE CARD */}
+        {showRoundCard && (
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", justifyContent: "center", alignItems: "center",
+            zIndex: 50, pointerEvents: "none",
+            animation: "titleCardFade 2.5s ease-in-out forwards"
+          }}>
+            <img src="/assets/round_1_fight.png" style={{
+              maxWidth: "50%", maxHeight: "50%", objectFit: "contain"
+            }} alt="Round Fight" />
+          </div>
+        )}
+
         {/* UI OVERLAY */}
         <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 20, pointerEvents: "none" }}>
           
@@ -567,11 +617,11 @@ function BattleScreen({ go }) {
             {/* COMBINED CENTER PANEL */}
             <div style={{ 
               display: "flex", 
-              background: "#110b14dd", 
-              border: `1px solid ${C.inkGold}55`, 
+              background: `#110b14dd url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2H0v-2h20v-2H0V8h20V6H0V4h20V2H0V0h22v20h-2zm0 20v-2H0v-2h20v-2H0v-2h20v-2H0v-2h20v-2H0v-2h20v-2H0v-2h22v20h-2zm20-20v-2H20v-2h20v-2H20v-2h20v-2H20V8h20V6H20V4h20V2H20V0h20v20h-20zM40 40v-2H20v-2h20v-2H20v-2h20v-2H20v-2h20v-2H20v-2h20v-2H20v-2h20v20z' fill='%23D4A853' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")`, 
+              border: `2px solid ${C.inkGold}88`, 
               borderRadius: 6, 
               padding: "12px", 
-              boxShadow: `0 6px 30px #000a`, 
+              boxShadow: `0 6px 30px #000a, inset 0 0 0 1px #000, inset 0 0 0 2px ${C.inkGold}44`, 
               backdropFilter: "blur(8px)", 
               alignItems: "center", 
               gap: 24 
