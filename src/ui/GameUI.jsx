@@ -366,7 +366,7 @@ function BattleScreen({ go }) {
   const [conf, setConf] = useState(0.46);
   const isProcessingRef = useRef(false); // <--- Prevent duplicate rapid attacks
   const holdCountRef = useRef(0); // <--- Require holding the sign briefly
-  const [timer, setTimer] = useState(10);
+  const [timer, setTimer] = useState(6);
   const [feed, setFeed] = useState("tracking"); // tracking | ok | bad
   const [shake, setShake] = useState(false);
   const [pPose, setPPose] = useState("idle"); // idle | attack | hurt
@@ -386,7 +386,7 @@ function BattleScreen({ go }) {
     if (gameMode === 'pvp' && mpStatus === 'active') {
       setPlayerHP(100);
       setMonsterHP(100);
-      setTimer(10);
+      setTimer(6);
       setSpellIdx(0);
       setConf(0);
       triggerAction('reset_match');
@@ -448,7 +448,7 @@ function BattleScreen({ go }) {
     if (gameMode === 'pvp') return; // No timeout damage in PvP
     if (timer === 0 && playerHP > 0 && monsterHP > 0) {
       takeHit();
-      setTimer(10);
+      setTimer(6);
     }
   }, [timer, playerHP, monsterHP, gameMode]);
 
@@ -523,11 +523,13 @@ function BattleScreen({ go }) {
       do {
         next = Math.floor(Math.random() * activeSigns.length);
       } while (next === current && activeSigns.length > 1);
+      
+      const nextSign = activeSigns[next];
+      setTimer(nextSign.letters.length > 1 ? 10 : 6);
       return next;
     });
     
     setSpellIdx(0);
-    setTimer(10);
     setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
     setFx({ side: "enemy", txt: "-28" });
@@ -539,7 +541,7 @@ function BattleScreen({ go }) {
     const newHp = Math.max(0, playerHP - monsterDamage);
     setPlayerHP(newHp);
     triggerAction('monster_attack', { targetHp: newHp });
-    setTimer(10);
+    setTimer(sign.letters.length > 1 ? 10 : 6);
     setConf(0);
     setShake(true); setTimeout(() => setShake(false), 500);
     setFx({ side: "player", txt: `-${monsterDamage}` });
@@ -549,7 +551,6 @@ function BattleScreen({ go }) {
   };
   const landMiss = () => {
       takeHit();
-      setTimer(10);
       if (gameMode === 'pvp') sendMiss();
   };
 
@@ -668,7 +669,7 @@ function BattleScreen({ go }) {
                   {gameMode !== 'pvp' && (
                     <>
                       <div style={{ height: 6 }} />
-                      <MeterRow label="Timer" pct={(timer / 10) * 100} color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
+                      <MeterRow label="Timer" pct={(timer / (sign.letters.length > 1 ? 10 : 6)) * 100} color={timer < 3 ? C.gestureBad : C.aura} suffix={`${timer.toFixed(0)}s`} />
                     </>
                   )}
                 </div>
@@ -748,14 +749,14 @@ function BattleScreen({ go }) {
               setCurrentFloor(nextF);
               setPlayerHP(100);
               setMonsterHP(100 + ((nextF - 1) * 25));
-              setTimer(10);
+              setTimer(nextF >= 8 && gameMode !== 'pvp' ? 10 : 6);
               setSpellIdx(0);
               triggerAction('reset_match');
             }}>Next Fight →</GoldBtn>}
             {gameMode !== 'pvp' && playerHP === 0 && <RedBtn onClick={() => {
               setPlayerHP(100);
               setMonsterHP(maxMonsterHP);
-              setTimer(10);
+              setTimer(currentFloor >= 8 && gameMode !== 'pvp' ? 10 : 6);
               setSpellIdx(0);
               triggerAction('reset_match');
             }}>Rematch</RedBtn>}

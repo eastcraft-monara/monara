@@ -172,11 +172,11 @@ export default class BattleScene extends Phaser.Scene {
           }
       } else {
           let monsterKey = 'slime'; // default fallback
-          if (floorData.z === 'Z1' || floorData.z === 'Z2') monsterKey = 'slime';
-          else if (floorData.z === 'Z3' || floorData.z === 'Z4') monsterKey = 'skeleton';
-          else if (floorData.z === 'Z5' || floorData.z === 'Z6') monsterKey = 'bat';
-          else if (floorData.z === 'Z7') monsterKey = 'imp';
-          else if (floorData.z === 'Z8') monsterKey = 'king';
+          if (floorData.n === 1 || floorData.n === 2) monsterKey = 'slime';
+          else if (floorData.n === 3 || floorData.n === 4) monsterKey = 'skeleton';
+          else if (floorData.n === 5 || floorData.n === 6) monsterKey = 'bat';
+          else if (floorData.n === 7) monsterKey = 'imp';
+          else if (floorData.n === 8) monsterKey = 'king';
 
           // --- Monster AI Sprite (Prototype) ---
           this.monsterSprite = this.add.image(w * 0.75, groundY, monsterKey)
