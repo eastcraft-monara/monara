@@ -46,6 +46,11 @@ export default class BattleScene extends Phaser.Scene {
       this.load.image('samurai_atk1', '/assets/sprites/samurai/samurai-attack-1.png');
       this.load.image('samurai_atk2', '/assets/sprites/samurai/samurai-attack-2.png');
       this.load.image('samurai_atk3', '/assets/sprites/samurai/samurai-attack-3.png');
+      
+      // Fighter Assets
+      this.load.spritesheet('fighter_idle', '/assets/sprites/fighter/Idle.png', { frameWidth: 240, frameHeight: 240 });
+      this.load.spritesheet('fighter_run', '/assets/sprites/fighter/Run.png', { frameWidth: 240, frameHeight: 240 });
+      this.load.spritesheet('fighter_atk', '/assets/sprites/fighter/Heavy Attack.png', { frameWidth: 240, frameHeight: 240 });
     }
   }
 
@@ -155,10 +160,30 @@ export default class BattleScene extends Phaser.Scene {
           this.monsterSprite.play('imp_idle');
       }
     } else {
-      // --- Samurai AI Sprite (Prototype) ---
-      this.playerSprite = this.add.image(w * 0.25, groundY, 'samurai')
+      // Create Fighter Animations
+      if (!this.anims.exists('f_idle')) {
+          this.anims.create({
+            key: 'f_idle',
+            frames: this.anims.generateFrameNumbers('fighter_idle', { start: 0, end: 5 }),
+            frameRate: 6, repeat: -1
+          });
+          this.anims.create({
+            key: 'f_run',
+            frames: this.anims.generateFrameNumbers('fighter_run', { start: 0, end: 8 }),
+            frameRate: 14, repeat: -1
+          });
+          this.anims.create({
+            key: 'f_atk',
+            frames: this.anims.generateFrameNumbers('fighter_atk', { start: 0, end: 8 }),
+            frameRate: 12, repeat: 0
+          });
+      }
+
+      // --- Fighter AI Sprite (Prototype) ---
+      this.playerSprite = this.add.sprite(w * 0.25, groundY, 'fighter_idle')
         .setOrigin(0.5, 1)
-        .setScale(0.22);
+        .setScale(1.2);
+      this.playerSprite.play('f_idle');
       
       if (gameMode === 'pvp') {
           this.monsterSprite = this.add.image(w * 0.75, groundY, 'samurai')
@@ -187,17 +212,6 @@ export default class BattleScene extends Phaser.Scene {
 
     // --- Procedural Idle Animations (Breathing) ---
     if (!USE_SPRITESHEET) {
-    this.tweens.add({
-      targets: this.playerSprite,
-      scaleY: 0.21, // squish down slightly
-      scaleX: 0.225, // stretch wide slightly
-      y: groundY + 2,
-      duration: 1200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
     this.tweens.add({
       targets: this.monsterSprite,
       scaleY: 0.33,
@@ -293,55 +307,64 @@ export default class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // 1. Squash & Stretch Player Attack
+    // 1. Fighter Spritesheet Attack
     this.playerSprite.setDepth(10);
     this.monsterSprite.setDepth(5);
     const originalX = this.playerSprite.x;
     
-    // Anticipation (pull back)
-    this.playerSprite.setTexture('samurai_atk1');
+    // Run towards the monster
+    this.playerSprite.play('f_run');
     this.tweens.add({
       targets: this.playerSprite,
-      x: originalX - 40, angle: 0,
-      duration: 400, ease: 'Sine.easeOut',
+      x: this.monsterSprite.x - 120, // Stop just in front
+      duration: 450, ease: 'Linear',
       onComplete: () => {
-        // Strike (dash forward)
-        this.playerSprite.setTexture('samurai_atk2');
-        this.tweens.add({
-          targets: this.playerSprite,
-          x: this.monsterSprite.x - 100, angle: 0,
-          duration: 350, ease: 'Cubic.easeIn',
-          onComplete: () => {
-            // Post-strike pose & VFX (PERFECT SYNC)
-            this.playerSprite.setTexture('samurai_atk3');
-            this.playerSprite.setAngle(0);
-            
+        this.playerSprite.play('f_atk');
+        
+        this.playerSprite.once('animationcomplete', () => {
+            // Run back to original position
+            this.playerSprite.flipX = true;
+            this.playerSprite.play('f_run');
+            this.tweens.add({
+                targets: this.playerSprite,
+                x: originalX,
+                duration: 400, ease: 'Linear',
+                onComplete: () => {
+                    this.playerSprite.flipX = false;
+                    this.playerSprite.play('f_idle');
+                }
+            });
+        });
+
+        // We delay the impact VFX by 750ms so it aligns with the animation frame!
+        this.time.delayedCall(750, () => {
             // --- TRIGGER IMPACT VFX ---
-            this.sound.play('sfx_hit', { volume: 0.5 });
-            this.applyHitstop(60);
-            this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xCAD0D7);
-            this.doScreenFlash(0xffffff, 0.35);
+        this.sound.play('sfx_hit', { volume: 0.5 });
+        this.applyHitstop(60);
+        this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xCAD0D7);
+        this.doScreenFlash(0xffffff, 0.35);
 
-            // Camera shake + parallax bump
-            this.cameras.main.shake(200, 0.015);
-            this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
-            this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
+        // Camera shake + parallax bump
+        this.cameras.main.shake(200, 0.015);
+        this.tweens.add({ targets: this.midLayer, x: -20, duration: 100, yoyo: true });
+        this.tweens.add({ targets: this.groundLayer, x: -40, duration: 100, yoyo: true });
 
-            // Monster Recoil
             const monsterStartX = this.monsterSprite.x;
+            const mScaleX = this.monsterSprite.scaleX;
+            const mScaleY = this.monsterSprite.scaleY;
             this.monsterSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
             this.time.delayedCall(50, () => this.monsterSprite.clearTint());
             
             this.tweens.add({
               targets: this.monsterSprite,
-              x: monsterStartX + 60, scaleX: 0.45, scaleY: 0.25, angle: 15,
+              x: monsterStartX + 60, scaleX: mScaleX * 1.3, scaleY: mScaleY * 0.7, angle: 15,
               duration: 100, yoyo: true, ease: 'Sine.easeOut',
               onComplete: () => {
                 this.monsterSprite.setAngle(0);
-                this.monsterSprite.setScale(0.35);
+                this.monsterSprite.setScale(mScaleX, mScaleY);
               }
             });
-            // --- END IMPACT VFX ---
+        // --- END IMPACT VFX ---
 
             // Cool Slash VFX (Blue crescent arc)
             const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 20, 150, 0x4A6FD4);
@@ -353,17 +376,6 @@ export default class BattleScene extends Phaser.Scene {
               duration: 300, ease: 'Cubic.easeOut',
               onComplete: () => slash.destroy()
             });
-
-            this.time.delayedCall(300, () => { // Hold pose 3 longer
-                // Recover (bounce back)
-                this.playerSprite.setTexture('samurai');
-                this.tweens.add({
-                  targets: this.playerSprite,
-                  x: originalX, angle: 0,
-                  duration: 600, ease: 'Bounce.easeOut'
-                });
-            });
-          }
         });
       }
     });
@@ -448,16 +460,18 @@ export default class BattleScene extends Phaser.Scene {
 
       // Player Recoil (Squash horizontally, fall back)
       const playerStartX = this.playerSprite.x;
+      const pScaleX = this.playerSprite.scaleX;
+      const pScaleY = this.playerSprite.scaleY;
       this.playerSprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL); // Flash white
       this.time.delayedCall(50, () => this.playerSprite.clearTint());
 
       this.tweens.add({
         targets: this.playerSprite,
-        x: playerStartX - 60, scaleX: 0.26, scaleY: 0.18, angle: -15,
+        x: playerStartX - 60, scaleX: pScaleX * 1.2, scaleY: pScaleY * 0.8, angle: -15,
         duration: 100, yoyo: true, ease: 'Sine.easeOut',
         onComplete: () => {
           this.playerSprite.setAngle(0);
-          this.playerSprite.setScale(0.22);
+          this.playerSprite.setScale(pScaleX, pScaleY);
         }
       });
 
