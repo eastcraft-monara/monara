@@ -202,30 +202,6 @@ for (let finger of [fp.Finger.Middle, fp.Finger.Ring, fp.Finger.Pinky]) {
 }
 letters.L = letterL;
 
-// ----------------------------------------------------------------------------
-// M: Thumb tucked under index, middle, ring. All fingers curled.
-// ----------------------------------------------------------------------------
-const letterM = new fp.GestureDescription('M');
-for (let finger of [fp.Finger.Index, fp.Finger.Middle, fp.Finger.Ring]) {
-  letterM.addCurl(finger, fp.FingerCurl.HalfCurl, 1.0);
-  letterM.addCurl(finger, fp.FingerCurl.FullCurl, 0.9);
-}
-letterM.addCurl(fp.Finger.Pinky, fp.FingerCurl.FullCurl, 1.0);
-letterM.addCurl(fp.Finger.Thumb, fp.FingerCurl.FullCurl, 1.0);
-letters.M = letterM;
-
-// ----------------------------------------------------------------------------
-// N: Thumb tucked under index and middle. All fingers curled.
-// ----------------------------------------------------------------------------
-const letterN = new fp.GestureDescription('N');
-for (let finger of [fp.Finger.Index, fp.Finger.Middle]) {
-  letterN.addCurl(finger, fp.FingerCurl.HalfCurl, 1.0);
-  letterN.addCurl(finger, fp.FingerCurl.FullCurl, 0.9);
-}
-letterN.addCurl(fp.Finger.Ring, fp.FingerCurl.FullCurl, 1.0);
-letterN.addCurl(fp.Finger.Pinky, fp.FingerCurl.FullCurl, 1.0);
-letterN.addCurl(fp.Finger.Thumb, fp.FingerCurl.FullCurl, 1.0);
-letters.N = letterN;
 
 // ----------------------------------------------------------------------------
 // P: Index forward, middle pointing down, thumb out (K downwards)
