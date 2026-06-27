@@ -418,28 +418,33 @@ function BattleScreen({ go }) {
       const hits = opponentHitCount - prevOppHit.current;
       prevOppHit.current = opponentHitCount;
       const dmg = 28 * hits; 
-      const newHp = Math.max(0, playerHP - dmg);
-      setPlayerHP(newHp);
-      triggerAction('monster_attack', { targetHp: newHp });
+      const targetHp = Math.max(0, playerHP - dmg);
+      triggerAction('monster_attack', { targetHp });
       
-      setShake(true); setTimeout(() => setShake(false), 500);
-      setFx({ side: "player", txt: `-${dmg}` });
-      setPPose("knock");
-      setEPose("lunge");
-      setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+      setTimeout(() => {
+          setPlayerHP(prev => Math.max(0, prev - dmg));
+          setShake(true); setTimeout(() => setShake(false), 500);
+          setFx({ side: "player", txt: `-${dmg}` });
+          setPPose("knock");
+          setEPose("lunge");
+          setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+      }, 750);
     }
     
     if (opponentMissCount > prevOppMiss.current) {
       const misses = opponentMissCount - prevOppMiss.current;
       prevOppMiss.current = opponentMissCount;
       const dmg = 20 * misses; 
-      const newHp = Math.max(0, monsterHP - dmg);
-      setMonsterHP(newHp);
-      triggerAction('player_attack', { targetHp: newHp });
+      const targetHp = Math.max(0, monsterHP - dmg);
+      triggerAction('player_attack', { targetHp });
       
-      setFx({ side: "enemy", txt: `-${dmg}` });
-      setEPose("knock");
-      setTimeout(() => { setEPose("idle"); setFx(null); }, 600);
+      setTimeout(() => {
+          setMonsterHP(prev => Math.max(0, prev - dmg));
+          setFx({ side: "enemy", txt: `-${dmg}` });
+          setEPose("knock");
+          setPPose("lunge");
+          setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+      }, 750);
     }
   }, [opponentHitCount, opponentMissCount, gameMode, playerHP, monsterHP, triggerAction]);
 
@@ -511,9 +516,8 @@ function BattleScreen({ go }) {
   }, [latestPrediction, targetChar, spellIdx, monsterHP, playerHP]);
 
   const landHit = () => {
-    const newHp = Math.max(0, monsterHP - 28);
-    setMonsterHP(newHp);
-    triggerAction('player_attack', { targetHp: newHp });
+    const targetHp = Math.max(0, monsterHP - 28);
+    triggerAction('player_attack', { targetHp });
     if (gameMode === 'pvp') sendHit();
     
     // Pick next random sign, avoiding repeats
@@ -531,23 +535,30 @@ function BattleScreen({ go }) {
     
     setSpellIdx(0);
     setConf(0);
-    setShake(true); setTimeout(() => setShake(false), 500);
-    setFx({ side: "enemy", txt: "-28" });
-    setPPose("lunge");
-    setEPose("knock");
-    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+
+    setTimeout(() => {
+        setMonsterHP(prev => Math.max(0, prev - 28));
+        setShake(true); setTimeout(() => setShake(false), 500);
+        setFx({ side: "enemy", txt: "-28" });
+        setPPose("lunge");
+        setEPose("knock");
+        setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+    }, 750);
   };
   const takeHit = () => {
-    const newHp = Math.max(0, playerHP - monsterDamage);
-    setPlayerHP(newHp);
-    triggerAction('monster_attack', { targetHp: newHp });
+    const targetHp = Math.max(0, playerHP - monsterDamage);
+    triggerAction('monster_attack', { targetHp });
     setTimer(sign.letters.length > 1 ? 10 : 6);
     setConf(0);
-    setShake(true); setTimeout(() => setShake(false), 500);
-    setFx({ side: "player", txt: `-${monsterDamage}` });
-    setEPose("lunge");
-    setPPose("knock");
-    setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+
+    setTimeout(() => {
+        setPlayerHP(prev => Math.max(0, prev - monsterDamage));
+        setShake(true); setTimeout(() => setShake(false), 500);
+        setFx({ side: "player", txt: `-${monsterDamage}` });
+        setEPose("lunge");
+        setPPose("knock");
+        setTimeout(() => { setPPose("idle"); setEPose("idle"); setFx(null); }, 600);
+    }, 750);
   };
   const landMiss = () => {
       takeHit();
