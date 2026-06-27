@@ -721,17 +721,17 @@ function BattleScreen({ go }) {
       {/* Victory / Defeat Modal */}
       {(monsterHP === 0 || playerHP === 0) && (
         <div style={{
-          position: "absolute", bottom: 0, left: 0, right: 0, height: 320,
+          position: "absolute", bottom: 0, left: 0, right: 0, height: 180,
           background: "rgba(10, 6, 8, 0.98)", zIndex: 9999,
           borderTop: `1px solid ${C.ashDim}44`,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           animation: "inkWipe 0.5s ease-out forwards"
         }}>
           <h1 style={{
-            fontFamily: "var(--font-saira)", fontSize: 72, fontWeight: 900,
+            fontFamily: "var(--font-saira)", fontSize: 48, fontWeight: 900,
             color: monsterHP === 0 ? C.inkGold : C.gestureBad,
-            textShadow: `0 0 60px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
-            marginBottom: 20, letterSpacing: 8,
+            textShadow: `0 0 40px ${monsterHP === 0 ? C.inkGold : C.gestureBad}`,
+            marginBottom: 8, letterSpacing: 8,
             animation: monsterHP === 0 ? "float 3s ease-in-out infinite" : "none"
           }}>
             {gameMode === 'pvp' 
@@ -743,7 +743,7 @@ function BattleScreen({ go }) {
           </h1>
           
           <div style={{
-            fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, color: C.ash, marginBottom: 40,
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, color: C.ash, marginBottom: 16,
             textAlign: "center", maxWidth: 400
           }}>
             {gameMode === 'pvp'
@@ -753,7 +753,7 @@ function BattleScreen({ go }) {
                 : `−524 $MONARA · 0.1% burned forever`)}
           </div>
 
-          <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
             {gameMode !== 'pvp' && monsterHP === 0 && <GoldBtn onClick={() => {
               clearFloor(currentFloor);
               const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;

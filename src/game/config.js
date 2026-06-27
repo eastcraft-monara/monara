@@ -9,6 +9,7 @@ export const config = {
   parent: 'game-container',
   backgroundColor: '#1A1520', // Fallback color, though React handles the gradient
   transparent: true,
+  pixelArt: true, // Crucial for HD pixel art rendering
   scene: [BootScene, BattleScene],
   scale: {
     mode: Phaser.Scale.FIT,
