@@ -26,9 +26,22 @@ export default class BattleScene extends Phaser.Scene {
       this.load.image('slime_atk1', '/assets/sprites/slime/slime-attack-1.png');
       this.load.image('slime_atk2', '/assets/sprites/slime/slime-attack-2.png');
       this.load.image('slime_atk3', '/assets/sprites/slime/slime-attack-3.png');
-      this.load.image('skeleton', '/assets/sprites/skeleton.png');
-      this.load.image('bat', '/assets/sprites/bat.png');
-      this.load.image('imp', '/assets/sprites/imp.png');
+      this.load.image('skeleton', '/assets/sprites/skeleton/skeleton.png');
+      this.load.image('skeleton_atk1', '/assets/sprites/skeleton/skeleton-attack-1.png');
+      this.load.image('skeleton_atk2', '/assets/sprites/skeleton/skeleton-attack-2.png');
+      this.load.image('skeleton_atk3', '/assets/sprites/skeleton/skeleton-attack-3.png');
+      this.load.image('bat', '/assets/sprites/bat/bat.png');
+      this.load.image('bat_atk1', '/assets/sprites/bat/bat-attack-1.png');
+      this.load.image('bat_atk2', '/assets/sprites/bat/bat-attack-2.png');
+      this.load.image('bat_atk3', '/assets/sprites/bat/bat-attack-3.png');
+      this.load.image('imp', '/assets/sprites/imp/imp.png');
+      this.load.image('imp_atk1', '/assets/sprites/imp/imp-attack-1.png');
+      this.load.image('imp_atk2', '/assets/sprites/imp/imp-attack-2.png');
+      this.load.image('imp_atk3', '/assets/sprites/imp/imp-attack-3.png');
+      this.load.image('king', '/assets/sprites/king-imp/king.png');
+      this.load.image('king_atk1', '/assets/sprites/king-imp/king-attack-1.png');
+      this.load.image('king_atk2', '/assets/sprites/king-imp/king-attack-2.png');
+      this.load.image('king_atk3', '/assets/sprites/king-imp/king-attack-3.png');
       this.load.image('stage_bg', '/assets/stage_bg.png');
       this.load.image('samurai_atk1', '/assets/sprites/samurai/samurai-attack-1.png');
       this.load.image('samurai_atk2', '/assets/sprites/samurai/samurai-attack-2.png');
@@ -158,11 +171,12 @@ export default class BattleScene extends Phaser.Scene {
             this.playerSprite.setTint(0xff7777); // Red tint for me (challenger)
           }
       } else {
-          let monsterKey = 'slime';
-          if (floorData.z === 'Z1') monsterKey = 'slime';
-          else if (floorData.z === 'Z2') monsterKey = 'skeleton';
-          else if (floorData.z === 'Z3') monsterKey = 'bat';
-          else if (floorData.z === 'Z4') monsterKey = 'imp';
+          let monsterKey = 'slime'; // default fallback
+          if (floorData.z === 'Z1' || floorData.z === 'Z2') monsterKey = 'slime';
+          else if (floorData.z === 'Z3' || floorData.z === 'Z4') monsterKey = 'skeleton';
+          else if (floorData.z === 'Z5' || floorData.z === 'Z6') monsterKey = 'bat';
+          else if (floorData.z === 'Z7') monsterKey = 'imp';
+          else if (floorData.z === 'Z8') monsterKey = 'king';
 
           // --- Monster AI Sprite (Prototype) ---
           this.monsterSprite = this.add.image(w * 0.75, groundY, monsterKey)
@@ -380,8 +394,9 @@ export default class BattleScene extends Phaser.Scene {
     const originalX = this.monsterSprite.x;
     
     // Anticipation (pull back)
-    if (this.monsterSprite.texture.key === 'slime') {
-        this.monsterSprite.setTexture('slime_atk1');
+    const baseKey = this.monsterSprite.texture.key.split('_')[0];
+    if (['slime', 'skeleton', 'bat', 'imp', 'king'].includes(baseKey)) {
+        this.monsterSprite.setTexture(`${baseKey}_atk1`);
     }
     
     this.tweens.add({
@@ -390,8 +405,8 @@ export default class BattleScene extends Phaser.Scene {
       duration: 400, ease: 'Sine.easeOut',
       onComplete: () => {
         // Strike (dash forward)
-        if (this.monsterSprite.texture.key === 'slime_atk1') {
-            this.monsterSprite.setTexture('slime_atk2');
+        if (this.monsterSprite.texture.key === `${baseKey}_atk1`) {
+            this.monsterSprite.setTexture(`${baseKey}_atk2`);
         }
         
         this.tweens.add({
@@ -400,8 +415,8 @@ export default class BattleScene extends Phaser.Scene {
           duration: 350, ease: 'Cubic.easeIn',
           onComplete: () => {
             // Recover (bounce back)
-            if (this.monsterSprite.texture.key === 'slime_atk2') {
-                this.monsterSprite.setTexture('slime_atk3');
+            if (this.monsterSprite.texture.key === `${baseKey}_atk2`) {
+                this.monsterSprite.setTexture(`${baseKey}_atk3`);
             }
             
             this.tweens.add({
@@ -409,8 +424,8 @@ export default class BattleScene extends Phaser.Scene {
               x: originalX, angle: 0,
               duration: 350, ease: 'Bounce.easeOut',
               onComplete: () => {
-                  if (this.monsterSprite.texture.key === 'slime_atk3') {
-                      this.monsterSprite.setTexture('slime');
+                  if (this.monsterSprite.texture.key === `${baseKey}_atk3`) {
+                      this.monsterSprite.setTexture(baseKey);
                   }
               }
             });
