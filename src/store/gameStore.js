@@ -1,16 +1,42 @@
 import { create } from 'zustand';
 import { io } from 'socket.io-client';
 
-export const TOWER_FLOORS = [
-  { n: 8, z: "Z4", name: "The Guardian", boss: true, color: 0xFFD700 },
-  { n: 7, z: "Z4", name: "Phrase Halls", color: 0xD4A853 },
-  { n: 6, z: "Z3", name: "Shadow Oni", color: 0x673AB7 },
-  { n: 5, z: "Z3", name: "Vocab Sanctum", color: 0x9C27B0 },
-  { n: 4, z: "Z2", name: "Fire Imp", color: 0xFF5722 },
-  { n: 3, z: "Z2", name: "Number Gate", color: 0x00BCD4 },
-  { n: 2, z: "Z1", name: "Skeleton", color: 0xE8E2D9 },
-  { n: 1, z: "Z1", name: "Alphabet Foot", color: 0x4CAF82 },
-];
+import { MONSTERS } from '../game/systems/MonsterDB';
+
+export const TOWER_FLOORS = [];
+for (let i = 28; i >= 1; i--) {
+  let zoneId = "Z1";
+  let color = 0x4CAF82;
+  let isBoss = false;
+
+  if (i >= 26) {
+    zoneId = "FINAL";
+    color = 0xFFD700;
+    if (i === 28) isBoss = true;
+  } else if (i >= 21) {
+    zoneId = "Z5";
+    color = 0xFF5722;
+  } else if (i >= 16) {
+    zoneId = "Z4";
+    color = 0xD4A853;
+  } else if (i >= 11) {
+    zoneId = "Z3";
+    color = 0x9C27B0;
+  } else if (i >= 6) {
+    zoneId = "Z2";
+    color = 0x00BCD4;
+  }
+
+  const monsterName = MONSTERS[i]?.name || `Floor ${i}`;
+
+  TOWER_FLOORS.push({
+    n: i,
+    z: zoneId,
+    name: monsterName,
+    color: color,
+    boss: isBoss
+  });
+}
 
 let socketInstance = null;
 

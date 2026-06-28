@@ -96,47 +96,43 @@ export const AVAILABLE_HEROES = [
 
 // ─── MONSTER REGISTRY ─────────────────────────────────────────────
 export const MONSTER_REGISTRY = {
+  // ZONA 1 (Floor 1-5)
+  Imp: makeConfig('monster', 'Imp', 128, 48, 1.8, { attackCount: 1, facesLeft: true, yOffset: 28 }),
+  goblin: makeConfig('monster', 'goblin', 115, 78, 1.3, { attackCount: 2, yOffset: 18 }),
+  kobold: makeConfig('monster', 'kobold', 148, 96, 1, { attackCount: 4, facesLeft: true, yOffset: 20 }),
+  skeleton_warrior: makeConfig('monster', 'skeleton_warrior', 89, 78, 1, { attackCount: 2, yOffset: 28 }),
+  masked_orc: makeConfig('monster', 'masked_orc', 150, 80, 1.3, { attackCount: 1, yOffset: 13}),
 
-  dragon: makeConfig('monster', 'dragon', 144, 96, 1.8, {
-    attackCount: 2,
-    idleFps: 8,
-    deathFps: 8,
-  }),
+  // ZONA 2 (Floor 6-10)
+  dwarf: makeConfig('monster', 'dwarf', 128, 96, 1.3, { attackCount: 1, yOffset: 1}),
+  baby_dragon: makeConfig('monster', 'baby_dragon', 158, 125, 1.4, { attackCount: 1, yOffset: 22 }),
+  harpy: makeConfig('monster', 'harpy', 96, 96, 1.6, { attackCount: 1, yOffset: 14 }),
+  lizardman: makeConfig('monster', 'lizardman', 144, 96, 1.5, { attackCount: 2, facesLeft: true, yOffset: 12 }),
+  gargoyle: makeConfig('monster', 'gargoyle', 144, 96, 1.5, { attackCount: 2, yOffset: 28 }),
 
-  goblin: makeConfig('monster', 'goblin', 96, 96, 1.5, {
-    attackCount: 2,
-  }),
+  // ZONA 3 (Floor 11-15)
+  centaur: makeConfig('monster', 'centaur', 148, 96, 1.6, { attackCount: 1, facesLeft: true, yOffset: 9 }),
+  mimic: makeConfig('monster', 'mimic', 96, 96, 1.4, { attackCount: 1,facesLeft:true, yOffset: 10 }),
+  poison_skull: makeConfig('monster', 'poison_skull', 160, 96, 1.5, { attackCount: 1, yOffset: -10 }),
+  flying_eye: makeConfig('monster', 'flying_eye', 150, 150, 1.5, { attackCount: 1, facesLeft:true, yOffset: -12 }),
+  satyr_archer: makeConfig('monster', 'satyr_archer', 96, 96, 1.5, { attackCount: 1, facesLeft: true, isRanged: true, hasArrow: true, yOffset: 5 }),
 
-  skeleton_warrior: makeConfig('monster', 'skeleton_warrior', 89, 78, 1.8, {
-    attackCount: 2,
-  }),
+  // ZONA 4 (floor 16-20)
+  pyromancer: makeConfig('monster', 'pyromancer', 100, 100, 1.3, { attackCount: 1,facesLeft:true, yOffset: 10 }),
+  witch: makeConfig('monster', 'witch', 125, 125, 1.3, { attackCount: 1, yOffset: 36 }),
+  medusa: makeConfig('monster', 'medusa', 150, 125, 1.5, { attackCount: 2, yOffset: 8 }),
+  cyclops: makeConfig('monster', 'cyclops', 245, 128, 1.8, { attackCount: 2, yOffset: 5 }),
+  cerberus: makeConfig('monster', 'cerberus', 128, 128, 1.8, { attackCount: 1, facesLeft:true, yOffset: -27 }),
 
-  cerberus: makeConfig('monster', 'cerberus', 128, 128, 1.8, {
-    attackCount: 1,
-  }),
+  // ZONA 5 (Floor 21-25)
+  gryphon: makeConfig('monster', 'gryphon', 112, 103, 1.8, { attackCount: 2, facesLeft:true, yOffset: 13 }),
+  minotaur: makeConfig('monster', 'minotaur', 128, 128, 1.5, { attackCount: 2,facesLeft:true, yOffset: 10 }),
+  werewolf: makeConfig('monster', 'werewolf', 158, 125, 1.3, { attackCount: 2, facesLeft:true,hasShout: true,  yOffset: 15 }),
+  stone_golem: makeConfig('monster', 'stone_golem', 220, 96, 1.8, { attackCount: 1, yOffset: 7 }),
+  skeleton_mage: makeConfig('monster', 'skeleton_mage', 128, 128, 1.2, { attackCount: 1,facesLeft:true, yOffset: 10}),
 
-  cyclops: makeConfig('monster', 'cyclops', 145, 128, 1.8, {
-    attackCount: 2,
-  }),
-
-  imp: makeConfig('monster', 'imp', 192, 48, 2.5, {
-    attackCount: 1,
-  }),
-
-  // Add new monsters below:
-  // stone_golem:    makeConfig('monster', 'stone_golem', 96, 96, 1.8,   { attackCount: 3 }),
-  // gryphon:        makeConfig('monster', 'gryphon', 128, 128, 1.8,     { attackCount: 2 }),
-  // harpy:          makeConfig('monster', 'harpy', 128, 128, 1.8,       { attackCount: 1 }),
-  // lizardman:      makeConfig('monster', 'lizardman', 96, 96, 1.8,     { attackCount: 2 }),
-  // minotaur:       makeConfig('monster', 'minotaur', 128, 128, 1.8,    { attackCount: 2 }),
-  // werewolf:       makeConfig('monster', 'werewolf', 125, 125, 1.8,    { attackCount: 2 }),
-  // wizard:         makeConfig('monster', 'wizard', 78, 78, 2.0,        { attackCount: 1 }),
-  // witch:          makeConfig('monster', 'witch', 100, 100, 2.0,       { attackCount: 1 }),
-  // masked_orc:     makeConfig('monster', 'masked_orc', 80, 80, 2.0,    { attackCount: 1 }),
-  // flying_eye:     makeConfig('monster', 'flying_eye', 96, 96, 2.0,    { attackCount: 1 }),
-  // poison_skull:   makeConfig('monster', 'poison_skull', 96, 96, 2.0,  { attackCount: 1 }),
-  // pyromancer:     makeConfig('monster', 'pyromancer', 100, 100, 2.0,  { attackCount: 1 }),
-  // baby_dragon:    makeConfig('monster', 'baby_dragon', 96, 96, 2.0,   { attackCount: 1 }),
-  // gargoyle:       makeConfig('monster', 'gargoyle', 128, 128, 1.8,    { attackCount: 2 }),
-
+  // FINAL ZONE (Floor 26-28)
+  huge_knight: makeConfig('monster', 'huge_knight', 237, 187, 1, { attackCount: 1,facesLeft:true, yOffset: 15 }),
+  dragon: makeConfig('monster', 'dragon', 144, 96, 1.8, { attackCount: 2, yOffset: 5 }),
+  demon_bos: makeConfig('monster', 'demon_bos', 162, 148, 1.8, { attackCount: 1, yOffset: 10 }),
 };

@@ -11,6 +11,7 @@ import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/sp
 import OpponentWebcamPanel from './OpponentWebcamPanel';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
 import { AVAILABLE_HEROES } from '@/game/data/characterRegistry';
+import { getMonsterForFloor } from '@/game/systems/MonsterDB';
 import WebcamPanel from '@/ui/WebcamPanel';
 
 // ============================================================
@@ -227,7 +228,7 @@ function MapScreen({ go }) {
   const { highestFloorCleared, currentFloor, setCurrentFloor, currentHeroId } = useGameStore();
   const [showHeroModal, setShowHeroModal] = useState(false);
 
-  const nextAvailableFloorNum = Math.min(highestFloorCleared + 1, 8);
+  const nextAvailableFloorNum = Math.min(highestFloorCleared + 1, 28);
   const balance = useTokenBalance();
   const currentHeroInfo = AVAILABLE_HEROES.find(h => h.id === currentHeroId) || AVAILABLE_HEROES[0];
 
@@ -245,7 +246,7 @@ function MapScreen({ go }) {
         maxWidth: 900, margin: "30px auto 0", alignItems: "start" }}>
         {/* tower column */}
         <div>
-          <Eyebrow>The Ascent · 8 Floors</Eyebrow>
+          <Eyebrow>The Ascent · 28 Floors</Eyebrow>
           <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 30,
             color: C.ash, margin: "6px 0 22px" }}>Monara Tower</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -274,7 +275,7 @@ function MapScreen({ go }) {
           <Panel>
             <Eyebrow>Run Stats</Eyebrow>
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 11 }}>
-              <Row label="Floors Cleared" value={`${highestFloorCleared} / 8`} mono />
+              <Row label="Floors Cleared" value={`${highestFloorCleared} / 28`} mono />
               <Row label="Total Earned" value="+8,250" mono gold />
               <Row label="Total Burned" value="−1,940" mono burn />
               <Row label="Win Rate" value="73%" mono />
@@ -356,12 +357,23 @@ function BattleScreen({ go }) {
   const [showHeroModal, setShowHeroModal] = useState(false);
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
-  const maxMonsterHP = gameMode === 'pvp' ? 100 : 100 + ((currentFloor - 1) * 25);
-  const monsterDamage = 15 + ((currentFloor - 1) * 2); // scales up to 55 on floor 8
+  const monsterData = getMonsterForFloor(currentFloor);
+  const maxMonsterHP = gameMode === 'pvp' ? 100 : monsterData.hp;
+  const monsterDamage = monsterData.damage;
 
   const [playerHP, setPlayerHP] = useState(100);
   const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
   const [showRoundCard, setShowRoundCard] = useState(true);
+  const [showEndModal, setShowEndModal] = useState(false);
+
+  useEffect(() => {
+    if (monsterHP === 0 || playerHP === 0) {
+      const t = setTimeout(() => setShowEndModal(true), 2000);
+      return () => clearTimeout(t);
+    } else {
+      setShowEndModal(false);
+    }
+  }, [monsterHP, playerHP]);
 
   // Trigger title card on new round/floor
   useEffect(() => {
@@ -418,7 +430,7 @@ function BattleScreen({ go }) {
     }
   }, [mpRound, mpStatus, gameMode, triggerAction]);
 
-  const activeSigns = currentFloor >= 8 ? WORD_SIGNS : SINGLE_SIGNS;
+  const activeSigns = currentFloor >= 28 ? WORD_SIGNS : SINGLE_SIGNS;
   const sign = activeSigns[signIdx % activeSigns.length];
 
   // confidence creep + timer
@@ -744,7 +756,7 @@ function BattleScreen({ go }) {
       </div>
 
       {/* Victory / Defeat Modal */}
-      {(monsterHP === 0 || playerHP === 0) && (
+      {showEndModal && (monsterHP === 0 || playerHP === 0) && (
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: 180,
           background: "rgba(10, 6, 8, 0.98)", zIndex: 9999,
@@ -781,10 +793,11 @@ function BattleScreen({ go }) {
           <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
             {gameMode !== 'pvp' && monsterHP === 0 && <GoldBtn onClick={() => {
               clearFloor(currentFloor);
-              const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 8;
+              const nextF = [...TOWER_FLOORS].reverse().find(f => f.n > currentFloor)?.n || 28;
+              const nextMonster = getMonsterForFloor(nextF);
               setCurrentFloor(nextF);
               setPlayerHP(100);
-              setMonsterHP(100 + ((nextF - 1) * 25));
+              setMonsterHP(nextMonster.hp);
               setTimer(nextF >= 8 && gameMode !== 'pvp' ? 10 : 6);
               setSpellIdx(0);
               triggerAction('reset_match');
@@ -792,7 +805,7 @@ function BattleScreen({ go }) {
             {gameMode !== 'pvp' && playerHP === 0 && <RedBtn onClick={() => {
               setPlayerHP(100);
               setMonsterHP(maxMonsterHP);
-              setTimer(currentFloor >= 8 && gameMode !== 'pvp' ? 10 : 6);
+              setTimer(currentFloor >= 28 && gameMode !== 'pvp' ? 10 : 6);
               setSpellIdx(0);
               triggerAction('reset_match');
             }}>Rematch</RedBtn>}

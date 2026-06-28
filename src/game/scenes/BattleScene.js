@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
 import { CharacterLoader } from '@/game/systems/CharacterLoader';
 import { HERO_REGISTRY, MONSTER_REGISTRY } from '@/game/data/characterRegistry';
+import { getMonsterForFloor } from '@/game/systems/MonsterDB';
 
 // ─── TIMING CONSTANTS ─────────────────────────────────────────────
 // All battle animation delays are defined here for easy tuning.
@@ -10,7 +11,7 @@ const TIMING = {
   FIGHTER_IMPACT:  750,   // ms impact VFX delay after reaching target
   DRAGON_IMPACT:  1100,   // ms impact VFX delay for dragon (longer animation)
   FIGHTER_RETURN:  400,   // ms to run back to original position
-  DEATH_BUFFER:    100,   // ms extra buffer after impact before death sequence
+  DEATH_BUFFER:    500,   // ms extra buffer after impact before death sequence
 };
 
 export default class BattleScene extends Phaser.Scene {
@@ -24,7 +25,10 @@ export default class BattleScene extends Phaser.Scene {
     this.floorId = floorId;
 
     // --- Audio ---
-    const zoneStr = String(floorId).padStart(3, '0');
+    // Loop through bgm 1 to 10 based on floor (e.g. floor 11 uses bgm 1)
+    let bgmIndex = ((floorId - 1) % 10) + 1;
+
+    const zoneStr = String(bgmIndex).padStart(3, '0');
     const bgmName = `rpg_bs${zoneStr}`;
     const bgmPath = `/assets/audio/Battle/${bgmName}`;
 
@@ -47,7 +51,13 @@ export default class BattleScene extends Phaser.Scene {
     // --- Character assets ---
     const heroId          = gameStore.currentHeroId || 'demon_samurai';
     const heroConfig      = HERO_REGISTRY[heroId] || HERO_REGISTRY['demon_samurai'];
-    const monsterSpriteId = gameStore.currentMonster?.spriteId ?? 'dragon';
+    
+    // In PvP, currentMonster might be set, otherwise use the floor's monster
+    const monsterData     = gameStore.gameMode === 'pvp' && gameStore.currentMonster 
+                              ? gameStore.currentMonster 
+                              : getMonsterForFloor(floorId);
+                              
+    const monsterSpriteId = monsterData.spriteId;
     const monsterConfig   = MONSTER_REGISTRY[monsterSpriteId] ?? MONSTER_REGISTRY['dragon'];
 
     CharacterLoader.preload(this, heroConfig);
@@ -200,18 +210,11 @@ export default class BattleScene extends Phaser.Scene {
       if (prevState?.lastAction?.timestamp === action.timestamp) return;
 
       if (action.type === 'player_attack') {
-        this.playPlayerAttack();
-        if (action.data?.targetHp === 0) {
-          const delay = TIMING.FIGHTER_RUN + TIMING.FIGHTER_IMPACT + TIMING.DEATH_BUFFER;
-          this.time.delayedCall(delay, () => this.playDeathSequence(false));
-        }
+        const isLethal = action.data?.targetHp === 0;
+        this.playPlayerAttack(isLethal);
       } else if (action.type === 'monster_attack') {
-        this.playMonsterAttack();
-        if (action.data?.targetHp === 0) {
-          const isMonsterDragon = this.monsterSprite?.charId === 'dragon';
-          const hitDelay = isMonsterDragon ? TIMING.DRAGON_IMPACT : TIMING.FIGHTER_IMPACT;
-          this.time.delayedCall(hitDelay + TIMING.DEATH_BUFFER, () => this.playDeathSequence(true));
-        }
+        const isLethal = action.data?.targetHp === 0;
+        this.playMonsterAttack(isLethal);
       } else if (action.type === 'reset_match') {
         this.scene.restart();
       }
@@ -234,7 +237,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   // ─── PLAYER ATTACK ───────────────────────────────────────────────
-  playPlayerAttack() {
+  playPlayerAttack(isLethal = false) {
     try {
       if (!this.sys?.game || !this.scene.isActive()) return;
 
@@ -285,10 +288,14 @@ export default class BattleScene extends Phaser.Scene {
 
           this.playSpriteAnim(this.monsterSprite, monsterAnims.hurt, () => {
             const cur = this.monsterSprite.anims.currentAnim?.key;
-            if (cur !== monsterAnims.death) {
+            if (cur !== monsterAnims.death && !isLethal) {
               this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
             }
           });
+
+          if (isLethal) {
+            this.time.delayedCall(TIMING.DEATH_BUFFER, () => this.playDeathSequence(false));
+          }
         });
       };
 
@@ -348,7 +355,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   // ─── MONSTER ATTACK ──────────────────────────────────────────────
-  playMonsterAttack() {
+  playMonsterAttack(isLethal = false) {
     try {
       if (!this.sys?.game || !this.scene.isActive()) return;
       this.sound.play('sfx_miss', { volume: 0.5 });
@@ -380,10 +387,14 @@ export default class BattleScene extends Phaser.Scene {
 
           this.playSpriteAnim(this.playerSprite, playerAnims.hurt, () => {
             const cur = this.playerSprite.anims.currentAnim?.key;
-            if (cur !== playerAnims.death) {
+            if (cur !== playerAnims.death && !isLethal) {
               this.playSpriteAnim(this.playerSprite, playerAnims.idle);
             }
           });
+
+          if (isLethal) {
+            this.time.delayedCall(TIMING.DEATH_BUFFER, () => this.playDeathSequence(true));
+          }
 
           // Claw Rake VFX
           for (let i = 0; i < 3; i++) {
@@ -451,6 +462,7 @@ export default class BattleScene extends Phaser.Scene {
     if (!dead?.play) return;
 
     const deadAnims = CharacterLoader.getAnimSet(dead);
+    console.log(`[BattleScene] playDeathSequence(isPlayer=${isPlayer}). Playing death animation: ${deadAnims.death} on ${dead.charId}`);
     this.playSpriteAnim(dead, deadAnims.death);
     this.playVictorySequence(winner);
   }
