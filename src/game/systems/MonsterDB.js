@@ -1,22 +1,35 @@
+/**
+ * MONSTER DATABASE
+ * ─────────────────────────────────────────────────────────────────
+ * Monster stats per zone.
+ * `spriteId` must match a key in MONSTER_REGISTRY (characterRegistry.js)
+ * and the folder name at /assets/character/monster/<spriteId>/Sprites/
+ * ─────────────────────────────────────────────────────────────────
+ */
+
 export const MONSTERS = {
   1: [
-    { name: 'Slime', hp: 50, damage: 10, color: 0x4CAF82 },
-    { name: 'Bat', hp: 50, damage: 12, color: 0x5D4037 }
+    { name: 'Goblin',      spriteId: 'goblin',           hp: 60,  damage: 12 },
+    { name: 'Imp',         spriteId: 'imp',               hp: 50,  damage: 10 },
   ],
   2: [
-    { name: 'Skeleton', hp: 80, damage: 15, color: 0xE8E2D9 },
-    { name: 'Ghost', hp: 80, damage: 18, color: 0xB0BEC5 }
+    { name: 'Skeleton',    spriteId: 'skeleton_warrior',  hp: 80,  damage: 15 },
+    { name: 'Cyclops',     spriteId: 'cyclops',           hp: 100, damage: 20 },
   ],
   3: [
-    { name: 'Samurai', hp: 120, damage: 25, color: 0xC8334A },
-    { name: 'Flame Spirit', hp: 120, damage: 30, color: 0xFF5722 }
+    { name: 'Cerberus',    spriteId: 'cerberus',          hp: 140, damage: 28 },
+    { name: 'Gryphon',     spriteId: 'gryphon',           hp: 150, damage: 30 },
   ],
   4: [
-    { name: 'Dragon', hp: 200, damage: 40, color: 0xD4A853 },
-    { name: 'Demon Lord', hp: 300, damage: 50, color: 0x000000 }
-  ]
+    { name: 'Dragon',      spriteId: 'dragon',            hp: 200, damage: 40 },
+  ],
 };
 
+/**
+ * Returns a random monster from the given zone.
+ * @param {number} zoneId
+ * @returns {{ name: string, spriteId: string, hp: number, damage: number }}
+ */
 export function getRandomMonster(zoneId) {
   const zoneMonsters = MONSTERS[zoneId] || MONSTERS[1];
   const randIndex = Math.floor(Math.random() * zoneMonsters.length);

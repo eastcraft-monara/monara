@@ -374,6 +374,16 @@ function BattleScreen({ go }) {
   const [fx, setFx] = useState(null); // {side, txt}
   const [modelReady, setModelReady] = useState(false);
 
+  // Sync battle state to store for audio/scene synchronization
+  useEffect(() => {
+    const store = useGameStore.getState();
+    if (gameMode === 'pvp') {
+      store.setBattleState(mpStatus === 'active' ? 'active' : 'loading');
+    } else {
+      store.setBattleState(modelReady ? 'active' : 'loading');
+    }
+  }, [gameMode, mpStatus, modelReady]);
+
   // Submit round result when someone dies in PvP
   useEffect(() => {
     if (gameMode === 'pvp' && (monsterHP === 0 || playerHP === 0)) {

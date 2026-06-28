@@ -35,6 +35,7 @@ const useGameStore = create((set, get) => ({
   // Battle State
   targetSign: null, // e.g. "A" or "FIRE"
   lastAction: null, // { type: 'player_attack' | 'monster_attack', timestamp: 1234 }
+  battleState: 'loading', // 'loading' | 'active'
 
   // Multiplayer State
   socketConnected: false,
@@ -58,6 +59,7 @@ const useGameStore = create((set, get) => ({
     hasAccess: access,
     walletAddress: address
   }),
+  setBattleState: (state) => set({ battleState: state }),
   setScene: (scene) => set({ currentScene: scene }),
   setGameMode: (mode) => set({ gameMode: mode }),
   setTargetSign: (sign) => set({ targetSign: sign }),
