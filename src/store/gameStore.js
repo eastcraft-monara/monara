@@ -23,6 +23,7 @@ const useGameStore = create((set, get) => ({
   // Game State
   currentScene: 'Boot', // Boot, WalletGate, WorldMap, Battle
   currentZone: 1,
+  currentHeroId: 'demon_samurai',
   gameMode: 'pve', // 'pve' or 'pvp'
   
   // Progression State
@@ -59,6 +60,7 @@ const useGameStore = create((set, get) => ({
     hasAccess: access,
     walletAddress: address
   }),
+  setHero: (heroId) => set({ currentHeroId: heroId }),
   setBattleState: (state) => set({ battleState: state }),
   setScene: (scene) => set({ currentScene: scene }),
   setGameMode: (mode) => set({ gameMode: mode }),

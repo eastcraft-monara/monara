@@ -13,9 +13,6 @@ const TIMING = {
   DEATH_BUFFER:    100,   // ms extra buffer after impact before death sequence
 };
 
-// Current hero character used by the player
-const CURRENT_HERO = 'demon_samurai';
-
 export default class BattleScene extends Phaser.Scene {
   constructor() {
     super('BattleScene');
@@ -39,15 +36,17 @@ export default class BattleScene extends Phaser.Scene {
     this.load.audio('sfx_miss', '/assets/audio/miss.wav');
 
     // --- Background assets ---
-    this.load.image('bg_layer1', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Background/3.png');
-    this.load.image('bg_layer2', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Background/2.png');
-    this.load.image('bg_layer3', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Background/1.png');
-    this.load.image('ground_block', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Tileset/last_ground_block.png');
-    this.load.image('autumn_trees', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Trees/Trees_2.png');
-    this.load.spritesheet('autumn_flag', '/assets/character/hero/Autumn Forest 2D Pixel Art/Autumn Forest 2D Pixel Art/Props/Flag.png', { frameWidth: 29, frameHeight: 64 });
+    const bgBase = '/assets/background/Autumn Forest 2D Pixel Art';
+    this.load.image('bg_layer1', `${bgBase}/Background/3.png`);
+    this.load.image('bg_layer2', `${bgBase}/Background/2.png`);
+    this.load.image('bg_layer3', `${bgBase}/Background/1.png`);
+    this.load.image('ground_block', `${bgBase}/Tileset/last_ground_block.png`);
+    this.load.image('autumn_trees', `${bgBase}/Trees/Trees_2.png`);
+    this.load.spritesheet('autumn_flag', `${bgBase}/Props/Flag.png`, { frameWidth: 29, frameHeight: 64 });
 
     // --- Character assets ---
-    const heroConfig      = HERO_REGISTRY[CURRENT_HERO];
+    const heroId          = gameStore.currentHeroId || 'demon_samurai';
+    const heroConfig      = HERO_REGISTRY[heroId] || HERO_REGISTRY['demon_samurai'];
     const monsterSpriteId = gameStore.currentMonster?.spriteId ?? 'dragon';
     const monsterConfig   = MONSTER_REGISTRY[monsterSpriteId] ?? MONSTER_REGISTRY['dragon'];
 
@@ -160,7 +159,7 @@ export default class BattleScene extends Phaser.Scene {
     this.playerSprite = CharacterLoader.createSprite(
       this, this._heroConfig,
       w * 0.25, groundY,
-      { flipX: false, bgScale: 1, yOffset: 30 }
+      { flipX: false, bgScale: 1 }
     );
 
     // --- Monster / opponent sprite (right) ---
@@ -168,7 +167,7 @@ export default class BattleScene extends Phaser.Scene {
       this.monsterSprite = CharacterLoader.createSprite(
         this, this._heroConfig,
         w * 0.75, groundY,
-        { flipX: true, bgScale: 1, yOffset: 30 }
+        { flipX: true, bgScale: 1 }
       );
       if (gameStore.isHost) {
         this.monsterSprite.setTint(0xff7777);
@@ -243,50 +242,20 @@ export default class BattleScene extends Phaser.Scene {
       this.monsterSprite.setDepth(5);
       const originalX = this.playerSprite.x;
 
-      // 1. Run toward target
-      this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_run`);
-      this.tweens.add({
-        targets: this.playerSprite,
-        x: this.monsterSprite.x - 120,
-        duration: TIMING.FIGHTER_RUN,
-        ease: 'Linear',
-        onComplete: () => {
-          // 2. Attack (cycling)
-          const atkAnim = CharacterLoader.getNextAttackAnim(this.playerSprite);
-          this.playSpriteAnim(this.playerSprite, atkAnim, () => {
-            // 3. Run back
-            this.playerSprite.flipX = true;
-            this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_run`);
-            this.tweens.add({
-              targets: this.playerSprite,
-              x: originalX,
-              duration: TIMING.FIGHTER_RETURN,
-              ease: 'Linear',
-              onComplete: () => {
-                this.playerSprite.flipX = false;
-                this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_idle`);
-              },
-            });
-          });
+      const doImpact = (delay) => {
+        this.time.delayedCall(delay, () => {
+          this.sound.play('sfx_hit', { volume: 0.5 });
+          this.applyHitstop(60);
 
-          // 4. Impact VFX (delayed to sync with animation frame)
-          this.time.delayedCall(TIMING.FIGHTER_IMPACT, () => {
-            this.sound.play('sfx_hit', { volume: 0.5 });
-            this.applyHitstop(60);
+          // Custom projectile hit VFX
+          if (this.playerSprite.hasArrow) {
+            const hitSprite = this.add.sprite(this.monsterSprite.x, this.monsterSprite.y - 40, `${this.playerSprite.charId}_arrow_hit`);
+            hitSprite.setScale(this.playerSprite.baseScaleX * 1.5);
+            hitSprite.play(`${this.playerSprite.charId}_arrow_hit`);
+            hitSprite.once('animationcomplete', () => hitSprite.destroy());
+          } else {
+            // Default melee hit VFX
             this.spawnHitSpark(this.monsterSprite.x, this.monsterSprite.y - 60, 0xCAD0D7);
-            this.doScreenFlash(0xffffff, 0.35);
-
-            // 5. Monster hit reaction
-            const monsterAnims = CharacterLoader.getAnimSet(this.monsterSprite);
-            this.playSpriteAnim(this.monsterSprite, monsterAnims.hurt, () => {
-              // Jangan kembali idle jika sudah di state death
-              const cur = this.monsterSprite.anims.currentAnim?.key;
-              if (cur !== monsterAnims.death) {
-                this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
-              }
-            });
-
-            // 6. Slash VFX
             const slash = this.add.ellipse(this.monsterSprite.x, this.monsterSprite.y - 60, 20, 150, 0x4A6FD4);
             slash.setAngle(45).setBlendMode(Phaser.BlendModes.ADD);
             this.tweens.add({
@@ -296,9 +265,83 @@ export default class BattleScene extends Phaser.Scene {
               duration: 300, ease: 'Cubic.easeOut',
               onComplete: () => slash.destroy(),
             });
+          }
+
+          this.doScreenFlash(0xffffff, 0.35);
+
+          // Monster hit reaction
+          const monsterAnims = CharacterLoader.getAnimSet(this.monsterSprite);
+          
+          this.tweens.killTweensOf(this.monsterSprite);
+          this.tweens.add({
+            targets: this.monsterSprite,
+            x: this.monsterSprite.baseX,
+            duration: 300,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+              this.monsterSprite.flipX = this.monsterSprite.baseFlipX;
+            }
           });
-        },
-      });
+
+          this.playSpriteAnim(this.monsterSprite, monsterAnims.hurt, () => {
+            const cur = this.monsterSprite.anims.currentAnim?.key;
+            if (cur !== monsterAnims.death) {
+              this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
+            }
+          });
+        });
+      };
+
+      const atkAnim = CharacterLoader.getNextAttackAnim(this.playerSprite);
+
+      if (this.playerSprite.isRanged) {
+        // RANGED ATTACK: shoot in place
+        this.playSpriteAnim(this.playerSprite, atkAnim, () => {
+          this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_idle`);
+        });
+
+        if (this.playerSprite.hasArrow) {
+          const arrow = this.add.image(this.playerSprite.x + 40, this.playerSprite.y - 40, `${this.playerSprite.charId}_arrow`);
+          arrow.setScale(this.playerSprite.baseScaleX);
+          this.tweens.add({
+            targets: arrow,
+            x: this.monsterSprite.x - 20,
+            duration: 250,
+            ease: 'Linear',
+            onComplete: () => {
+              arrow.destroy();
+              doImpact(0); // apply immediately since the arrow arrived
+            }
+          });
+        } else {
+          doImpact(300); // generic ranged delay
+        }
+      } else {
+        // MELEE ATTACK: run toward target
+        this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_run`);
+        this.tweens.add({
+          targets: this.playerSprite,
+          x: this.monsterSprite.x - 120,
+          duration: TIMING.FIGHTER_RUN,
+          ease: 'Linear',
+          onComplete: () => {
+            this.playSpriteAnim(this.playerSprite, atkAnim, () => {
+              this.playerSprite.flipX = !this.playerSprite.baseFlipX;
+              this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_run`);
+              this.tweens.add({
+                targets: this.playerSprite,
+                x: originalX, angle: 0,
+                duration: 500, ease: 'Sine.easeOut',
+                onComplete: () => {
+                  this.playerSprite.flipX = this.playerSprite.baseFlipX;
+                  this.playSpriteAnim(this.playerSprite, `${this.playerSprite.charId}_idle`);
+                },
+              });
+            });
+            doImpact(TIMING.FIGHTER_IMPACT);
+          },
+        });
+      }
     } catch (e) {
       // Ignore errors from destroyed scenes during Fast Refresh
     }
@@ -315,66 +358,87 @@ export default class BattleScene extends Phaser.Scene {
       const originalX   = this.monsterSprite.x;
       const monsterAnims = CharacterLoader.getAnimSet(this.monsterSprite);
 
-      // 1. Run toward player
-      this.playSpriteAnim(this.monsterSprite, monsterAnims.run);
-      this.tweens.add({
-        targets: this.monsterSprite,
-        x: this.playerSprite.x + (this.scale.width * 0.15),
-        duration: 500, ease: 'Sine.easeIn',
-        onComplete: () => {
-          // 2. Attack (cycling)
-          const atkAnim = CharacterLoader.getNextAttackAnim(this.monsterSprite);
-          this.playSpriteAnim(this.monsterSprite, atkAnim, () => {
-            // 3. Run back
-            this.monsterSprite.flipX = true;
-            this.playSpriteAnim(this.monsterSprite, monsterAnims.run);
-            this.tweens.add({
-              targets: this.monsterSprite,
-              x: originalX, angle: 0,
-              duration: 500, ease: 'Sine.easeOut',
-              onComplete: () => {
-                this.monsterSprite.flipX = false;
-                this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
-              },
-            });
+      const doImpact = (delay) => {
+        this.time.delayedCall(delay, () => {
+          this.applyHitstop(60);
+          this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xD8243A);
+          this.doScreenFlash(0xff0000, 0.2);
+
+          // Player hit reaction
+          const playerAnims = CharacterLoader.getAnimSet(this.playerSprite);
+          
+          this.tweens.killTweensOf(this.playerSprite);
+          this.tweens.add({
+            targets: this.playerSprite,
+            x: this.playerSprite.baseX,
+            duration: 300,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+              this.playerSprite.flipX = this.playerSprite.baseFlipX;
+            }
           });
-        },
-      });
 
-      // 4. Impact VFX (delay based on monster type)
-      const isMonsterDragon = this.monsterSprite.charId === 'dragon';
-      const hitDelay = isMonsterDragon ? TIMING.DRAGON_IMPACT : TIMING.FIGHTER_IMPACT;
+          this.playSpriteAnim(this.playerSprite, playerAnims.hurt, () => {
+            const cur = this.playerSprite.anims.currentAnim?.key;
+            if (cur !== playerAnims.death) {
+              this.playSpriteAnim(this.playerSprite, playerAnims.idle);
+            }
+          });
 
-      this.time.delayedCall(hitDelay, () => {
-        this.applyHitstop(60);
-        this.spawnHitSpark(this.playerSprite.x, this.playerSprite.y - 60, 0xD8243A);
-        this.doScreenFlash(0xff0000, 0.2);
-
-        // 5. Player hit reaction
-        const playerAnims = CharacterLoader.getAnimSet(this.playerSprite);
-        this.playSpriteAnim(this.playerSprite, playerAnims.hurt, () => {
-          const cur = this.playerSprite.anims.currentAnim?.key;
-          if (cur !== playerAnims.death) {
-            this.playSpriteAnim(this.playerSprite, playerAnims.idle);
+          // Claw Rake VFX
+          for (let i = 0; i < 3; i++) {
+            const scratch = this.add.ellipse(
+              this.playerSprite.x + (i * 15 - 15),
+              this.playerSprite.y - 60, 10, 100, 0xD8243A
+            );
+            scratch.setAngle(-45 + (i * 10 - 10)).setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({
+              targets: scratch,
+              scaleX: 6, scaleY: 1.2,
+              alpha: { from: 1, to: 0 },
+              duration: 250 + i * 50, ease: 'Cubic.easeOut',
+              onComplete: () => scratch.destroy(),
+            });
           }
         });
+      };
 
-        // 6. Claw Rake VFX
-        for (let i = 0; i < 3; i++) {
-          const scratch = this.add.ellipse(
-            this.playerSprite.x + (i * 15 - 15),
-            this.playerSprite.y - 60, 10, 100, 0xD8243A
-          );
-          scratch.setAngle(-45 + (i * 10 - 10)).setBlendMode(Phaser.BlendModes.ADD);
-          this.tweens.add({
-            targets: scratch,
-            scaleX: 6, scaleY: 1.2,
-            alpha: { from: 1, to: 0 },
-            duration: 250 + i * 50, ease: 'Cubic.easeOut',
-            onComplete: () => scratch.destroy(),
-          });
-        }
-      });
+      const atkAnim = CharacterLoader.getNextAttackAnim(this.monsterSprite);
+      
+      const isMonsterDragon = this.monsterSprite.charId === 'dragon';
+      const baseDelay = isMonsterDragon ? TIMING.DRAGON_IMPACT : TIMING.FIGHTER_IMPACT;
+
+      if (this.monsterSprite.isRanged) {
+        // RANGED ATTACK: attack in place
+        this.playSpriteAnim(this.monsterSprite, atkAnim, () => {
+          this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
+        });
+        doImpact(isMonsterDragon ? TIMING.DRAGON_IMPACT : 300);
+      } else {
+        // MELEE ATTACK: run toward player
+        this.playSpriteAnim(this.monsterSprite, monsterAnims.run);
+        this.tweens.add({
+          targets: this.monsterSprite,
+          x: this.playerSprite.x + (this.scale.width * 0.15),
+          duration: 500, ease: 'Sine.easeIn',
+          onComplete: () => {
+            this.playSpriteAnim(this.monsterSprite, atkAnim, () => {
+              this.monsterSprite.flipX = !this.monsterSprite.baseFlipX;
+              this.playSpriteAnim(this.monsterSprite, monsterAnims.run);
+              this.tweens.add({
+                targets: this.monsterSprite,
+                x: originalX, angle: 0,
+                duration: 500, ease: 'Sine.easeOut',
+                onComplete: () => {
+                  this.monsterSprite.flipX = this.monsterSprite.baseFlipX;
+                  this.playSpriteAnim(this.monsterSprite, monsterAnims.idle);
+                },
+              });
+            });
+            doImpact(baseDelay);
+          },
+        });
+      }
     } catch (e) {
       // Ignore errors from destroyed scenes during Fast Refresh
     }
@@ -415,7 +479,7 @@ export default class BattleScene extends Phaser.Scene {
     const winAnims  = CharacterLoader.getAnimSet(winnerSprite);
 
     const startCelebration = () => {
-      winnerSprite.flipX = !isPlayer; // face the center of the arena
+      winnerSprite.flipX = winnerSprite.baseFlipX; // face the center of the arena
       winnerSprite.off('animationcomplete');
       
       if (winAnims.shout) {
@@ -436,7 +500,7 @@ export default class BattleScene extends Phaser.Scene {
     if (Math.abs(winnerSprite.x - originalX) > 10) {
       // Run back to original position first
       this.playSpriteAnim(winnerSprite, winAnims.run);
-      winnerSprite.flipX = winnerSprite.x > originalX;
+      winnerSprite.flipX = !winnerSprite.baseFlipX;
       this.tweens.add({
         targets: winnerSprite,
         x: originalX,

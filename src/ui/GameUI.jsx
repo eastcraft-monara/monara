@@ -10,6 +10,7 @@ import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/sp
 
 import OpponentWebcamPanel from './OpponentWebcamPanel';
 import useGameStore, { TOWER_FLOORS } from '@/store/gameStore';
+import { AVAILABLE_HEROES } from '@/game/data/characterRegistry';
 import WebcamPanel from '@/ui/WebcamPanel';
 
 // ============================================================
@@ -223,10 +224,12 @@ function LockNote() {
 // SCREEN 2 — MONARA TOWER MAP
 // ============================================================
 function MapScreen({ go }) {
-  const { highestFloorCleared, currentFloor, setCurrentFloor } = useGameStore();
+  const { highestFloorCleared, currentFloor, setCurrentFloor, currentHeroId } = useGameStore();
+  const [showHeroModal, setShowHeroModal] = useState(false);
 
   const nextAvailableFloorNum = Math.min(highestFloorCleared + 1, 8);
   const balance = useTokenBalance();
+  const currentHeroInfo = AVAILABLE_HEROES.find(h => h.id === currentHeroId) || AVAILABLE_HEROES[0];
 
   const floors = TOWER_FLOORS.map(f => ({
     ...f,
@@ -259,6 +262,16 @@ function MapScreen({ go }) {
         {/* side intel */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 20 }}>
           <Panel>
+            <Eyebrow>Active Hero</Eyebrow>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, marginBottom: 16 }}>
+              <img src={`/assets/character/hero/${currentHeroInfo.id}/${currentHeroInfo.preview}`} alt={currentHeroInfo.name} style={{ width: 60, height: 60, objectFit: "contain" }} />
+              <div style={{ fontFamily: "var(--font-saira)", fontSize: 18, color: C.ash, fontWeight: 700 }}>
+                {currentHeroInfo.name}
+              </div>
+            </div>
+            <button onClick={() => setShowHeroModal(true)} style={{ ...ghostBtn, width: "100%", fontSize: 12, padding: "8px" }}>Change Hero</button>
+          </Panel>
+          <Panel>
             <Eyebrow>Run Stats</Eyebrow>
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 11 }}>
               <Row label="Floors Cleared" value={`${highestFloorCleared} / 8`} mono />
@@ -277,6 +290,7 @@ function MapScreen({ go }) {
           </Panel>
         </div>
       </div>
+      {showHeroModal && <HeroSelectionModal onClose={() => setShowHeroModal(false)} />}
     </Stage>
   );
 }
@@ -338,7 +352,8 @@ const WORD_SIGNS = [
 ];
 
 function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentHitCount, opponentMissCount } = useGameStore();
+  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentHitCount, opponentMissCount, currentHeroId } = useGameStore();
+  const [showHeroModal, setShowHeroModal] = useState(false);
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const maxMonsterHP = gameMode === 'pvp' ? 100 : 100 + ((currentFloor - 1) * 25);
@@ -781,6 +796,7 @@ function BattleScreen({ go }) {
               setSpellIdx(0);
               triggerAction('reset_match');
             }}>Rematch</RedBtn>}
+            {gameMode !== 'pvp' && <button onClick={() => setShowHeroModal(true)} style={ghostBtn}>Change Hero</button>}
             {(gameMode !== 'pvp' || mpStatus === 'ended') && <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>}
           </div>
         </div>
@@ -826,6 +842,9 @@ function BattleScreen({ go }) {
           </GoldBtn>
         </div>
       )}
+
+      {/* Hero Selection Modal Overlay */}
+      {showHeroModal && <HeroSelectionModal onClose={() => setShowHeroModal(false)} />}
     </Stage>
   );
 }
@@ -1478,7 +1497,7 @@ function AcceptChallengeScreen({ roomId, go }) {
 // ROOT — screen navigator
 // ============================================================
 const SCREENS = [
-  ["gate", "Gate"], ["map", "Tower"], ["battle", "Battle"],
+  ["gate", "Gate"], ["map", "Tower"],
   ["pvp", "PvP Bet"], ["burn", "Burn"],
 ];
 
@@ -1527,6 +1546,47 @@ export default function App() {
         {screen === "burn" && <BurnScreen go={go} />}
         {screen === "accept_challenge" && <AcceptChallengeScreen roomId={joinId} go={go} />}
       </div>
+    </div>
+  );
+}
+
+function HeroSelectionModal({ onClose }) {
+  const { currentHeroId, setHero, triggerAction, currentScene } = useGameStore();
+  
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(10,6,8,0.9)", zIndex: 10000,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      animation: "inkWipe 0.3s ease-out forwards"
+    }}>
+      <h2 style={{ fontFamily: "var(--font-saira)", fontSize: 28, color: C.ash, marginBottom: 32 }}>Select Hero</h2>
+      <div className="hero-scroll" style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+        gap: 20, width: "100%", maxWidth: 1000, maxHeight: "75vh", overflowY: "auto", padding: 20
+      }}>
+        {AVAILABLE_HEROES.map(hero => {
+          const isSelected = hero.id === currentHeroId;
+          return (
+            <div key={hero.id} onClick={() => { 
+              setHero(hero.id); 
+              if (currentScene === 'battle') triggerAction('reset_match');
+              onClose(); 
+            }} style={{
+              background: isSelected ? `${C.inkGold}22` : C.bgPanel,
+              border: `2px solid ${isSelected ? C.inkGold : "#ffffff10"}`,
+              borderRadius: 8, padding: "2px", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 16,
+              transition: "all 0.2s"
+            }}>
+              <img src={`/assets/character/hero/${hero.id}/${hero.preview}`} alt={hero.name} style={{
+                width: 180, height: 180, objectFit: "contain",
+                filter: isSelected ? "drop-shadow(0 0 12px rgba(230,199,140,0.5))" : "none"
+              }} />
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={onClose} style={{ ...ghostBtn, marginTop: 32, fontSize: 14, padding: "10px 24px" }}>Cancel</button>
     </div>
   );
 }

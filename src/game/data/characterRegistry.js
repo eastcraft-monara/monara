@@ -37,6 +37,7 @@ const BASE = {
  * @param {number}  [options.hurtFps=12]
  * @param {number}  [options.deathFps=8]
  * @param {number}  [options.shoutFps=8]
+ * @param {boolean} [options.facesLeft=false] - true if the raw sprite naturally faces left
  */
 function makeConfig(type, id, frameWidth, frameHeight, scale, options = {}) {
   return {
@@ -48,6 +49,9 @@ function makeConfig(type, id, frameWidth, frameHeight, scale, options = {}) {
     scale,
     attackCount: options.attackCount ?? 1,
     hasShout:    options.hasShout    ?? false,
+    facesLeft:   options.facesLeft   ?? false,
+    isRanged:    options.isRanged    ?? false,
+    hasArrow:    options.hasArrow    ?? false,
     animFps: {
       idle:   options.idleFps   ?? 8,
       run:    options.runFps    ?? 12,
@@ -56,27 +60,39 @@ function makeConfig(type, id, frameWidth, frameHeight, scale, options = {}) {
       death:  options.deathFps  ?? 8,
       shout:  options.shoutFps  ?? 8,
     },
+    yOffset: options.yOffset ?? 0,
   };
 }
 
 // ─── HERO REGISTRY ────────────────────────────────────────────────
 export const HERO_REGISTRY = {
-
-  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, {
-    attackCount: 2,
-    idleFps: 6,
-    hasShout: true,
-  }),
-
-  // wolf_samurai: makeConfig('hero', 'wolf_samurai', 128, 108, 2.0, {
-  //   attackCount: 3,
-  // }),
-
-  // executioner: makeConfig('hero', 'executioner', 128, 108, 2.0, {
-  //   attackCount: 1,
-  // }),
-
+  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, { attackCount: 4, idleFps: 6, hasShout: true, yOffset: 30 }),
+  executioner: makeConfig('hero', 'executioner', 130, 92, 2.0, { attackCount: 2, facesLeft: true, yOffset: 30 }),
+  samurai_1: makeConfig('hero', 'samurai_1', 96, 96, 2.0, { attackCount: 5, hasShout: true, yOffset: 30 }),
+  samurai_2: makeConfig('hero', 'samurai_2', 96, 64, 2.0, { attackCount: 4, hasShout: true, yOffset: 30 }),
+  samurai_3: makeConfig('hero', 'samurai_3', 106, 84, 2.0, { attackCount: 4, hasShout: true, yOffset: 45 }),
+  samurai_4: makeConfig('hero', 'samurai_4', 96, 96, 2.0, { attackCount: 3, hasShout: true, yOffset: 0 }),
+  samurai_5: makeConfig('hero', 'samurai_5', 96, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 30 }),
+  samurai_6: makeConfig('hero', 'samurai_6', 98, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 45 }),
+  samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30 }),
+  samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45 }),
+  wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45 }),
 };
+
+// Data array for Hero Selection UI
+export const AVAILABLE_HEROES = [
+  { id: 'demon_samurai', name: 'Demon Samurai', preview: 'preview.gif' },
+  { id: 'executioner', name: 'Executioner', preview: 'Preview.gif' },
+  { id: 'samurai_1', name: 'Samurai 1', preview: 'Preview.png' },
+  { id: 'samurai_2', name: 'Samurai 2', preview: 'Preview.png' },
+  { id: 'samurai_3', name: 'Samurai 3', preview: 'preview.gif' },
+  { id: 'samurai_4', name: 'Samurai 4', preview: 'Preview.gif' },
+  { id: 'samurai_5', name: 'Samurai 5', preview: 'preview.gif' },
+  { id: 'samurai_6', name: 'Samurai 6', preview: 'preview.gif' },
+  { id: 'samurai_archer', name: 'Samurai Archer', preview: 'Preview.gif' },
+  { id: 'samurai_panda', name: 'Samurai Panda', preview: 'preview.gif' },
+  { id: 'wolf_samurai', name: 'Wolf Samurai', preview: 'Preview.png' },
+];
 
 // ─── MONSTER REGISTRY ─────────────────────────────────────────────
 export const MONSTER_REGISTRY = {

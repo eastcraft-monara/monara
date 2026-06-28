@@ -62,6 +62,16 @@ export class CharacterLoader {
         );
       }
     }
+    
+    // Optional arrow projectile
+    if (config.hasArrow) {
+      if (!scene.textures.exists(`${id}_arrow`)) {
+        scene.load.image(`${id}_arrow`, `${basePath}/ARROW.png`);
+      }
+      if (!scene.textures.exists(`${id}_arrow_hit`)) {
+        scene.load.spritesheet(`${id}_arrow_hit`, `${basePath}/ARROW_HIT.png`, { frameWidth: 48, frameHeight: 16 });
+      }
+    }
   }
 
   /**
@@ -83,12 +93,17 @@ export class CharacterLoader {
     ].forEach(([animKey, fps, repeat]) => {
       const key = `${id}_${animKey}`;
       if (!scene.anims.exists(key)) {
-        scene.anims.create({
-          key,
-          frames: scene.anims.generateFrameNumbers(key),
-          frameRate: fps,
-          repeat,
-        });
+        const frames = scene.anims.generateFrameNumbers(key);
+        if (frames && frames.length > 0) {
+          scene.anims.create({
+            key,
+            frames,
+            frameRate: fps,
+            repeat,
+          });
+        } else {
+          console.warn(`[CharacterLoader] Missing frames for base anim: ${key}`);
+        }
       }
     });
 
@@ -96,12 +111,17 @@ export class CharacterLoader {
     for (let i = 1; i <= attackCount; i++) {
       const key = `${id}_attack${i}`;
       if (!scene.anims.exists(key)) {
-        scene.anims.create({
-          key,
-          frames: scene.anims.generateFrameNumbers(key),
-          frameRate: animFps.attack,
-          repeat: 0,
-        });
+        const frames = scene.anims.generateFrameNumbers(key);
+        if (frames && frames.length > 0) {
+          scene.anims.create({
+            key,
+            frames,
+            frameRate: animFps.attack,
+            repeat: 0,
+          });
+        } else {
+          console.warn(`[CharacterLoader] Missing frames for attack anim: ${key}`);
+        }
       }
     }
 
@@ -109,12 +129,33 @@ export class CharacterLoader {
     if (hasShout) {
       const key = `${id}_shout`;
       if (!scene.anims.exists(key)) {
-        scene.anims.create({
-          key,
-          frames: scene.anims.generateFrameNumbers(key),
-          frameRate: animFps.shout,
-          repeat: -1,
-        });
+        const frames = scene.anims.generateFrameNumbers(key);
+        if (frames && frames.length > 0) {
+          scene.anims.create({
+            key,
+            frames,
+            frameRate: animFps.shout,
+            repeat: -1,
+          });
+        } else {
+          console.warn(`[CharacterLoader] Missing frames for shout anim: ${key}`);
+        }
+      }
+    }
+
+    // Optional arrow hit animation
+    if (config.hasArrow) {
+      const hitKey = `${id}_arrow_hit`;
+      if (!scene.anims.exists(hitKey)) {
+        const frames = scene.anims.generateFrameNumbers(hitKey);
+        if (frames && frames.length > 0) {
+          scene.anims.create({
+            key: hitKey,
+            frames,
+            frameRate: 15,
+            repeat: 0
+          });
+        }
       }
     }
   }
@@ -132,24 +173,39 @@ export class CharacterLoader {
    * @param {number}  [options.yOffset=0]     - additional vertical offset if needed
    * @returns {Phaser.GameObjects.Sprite}
    */
-  static createSprite(scene, config, x, y, { flipX = false, bgScale = 1, yOffset = 0 } = {}) {
-    const { id, scale, hasShout } = config;
+  static createSprite(scene, config, x, y, { flipX = false, bgScale = 1 } = {}) {
+    const { id, scale, hasShout, facesLeft = false, yOffset = 0 } = config;
     const finalScale = scale * bgScale;
+    const appliedYOffset = yOffset * bgScale;
 
-    const sprite = scene.add.sprite(x, y - yOffset, `${id}_idle`)
+    const sprite = scene.add.sprite(x, y - appliedYOffset, `${id}_idle`)
       .setOrigin(0.5, 1)
       .setScale(finalScale);
 
     // Store metadata on the sprite for use by helper methods
+    sprite.baseX        = x;
+    sprite.baseY        = y - appliedYOffset;
     sprite.baseScaleX   = finalScale;
     sprite.baseScaleY   = finalScale;
     sprite.charId       = id;
     sprite.attackCount  = config.attackCount;
     sprite.attackCycle  = 0;        // current cycling index for attacks
     sprite.hasShout     = hasShout; // whether SHOUT.png victory anim is available
-    sprite.flipX        = flipX;
+    sprite.isRanged     = config.isRanged || false;
+    sprite.hasArrow     = config.hasArrow || false;
+    sprite.facesLeft    = facesLeft; // save property for restoring flip direction
+    
+    // Compute actual flip based on intention (flipX) and natural facing direction
+    sprite.flipX = facesLeft ? !flipX : flipX;
+    sprite.baseFlipX = sprite.flipX; // Save the base idle orientation
 
-    sprite.play(`${id}_idle`);
+    const idleKey = `${id}_idle`;
+    if (scene.anims.exists(idleKey)) {
+      sprite.play(idleKey);
+    } else {
+      console.error(`[CharacterLoader] Cannot play ${idleKey}. Texture/Animation is missing. Did you rename the files correctly?`);
+    }
+
     return sprite;
   }
 
