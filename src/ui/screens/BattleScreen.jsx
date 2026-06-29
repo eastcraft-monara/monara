@@ -29,8 +29,6 @@ const WORD_SIGNS = [
   { word: "SWORD", letters: ["S", "W", "O", "R", "D"] },
 ];
 
-
-
 export default function BattleScreen({ go }) {
   const latestPrediction = useGameStore(s => s.latestPrediction);
   const setTargetSign = useGameStore(s => s.setTargetSign);
@@ -164,6 +162,7 @@ export default function BattleScreen({ go }) {
   const [conf, setConf] = useState(0.46);
   const isProcessingRef = useRef(false); // <--- Prevent duplicate rapid attacks
   const holdCountRef = useRef(0); // <--- Require holding the sign briefly
+  const requireResetRef = useRef(false); // <--- Require dropping hand/changing sign before next attack
   const [timer, setTimer] = useState(6);
   const [feed, setFeed] = useState("tracking"); // tracking | ok | bad
   const [shake, setShake] = useState(false);
@@ -197,6 +196,7 @@ export default function BattleScreen({ go }) {
       setTimer(6);
       setSpellIdx(0);
       setConf(0);
+      requireResetRef.current = false;
       triggerAction('reset_match');
     }
   }, [mpRound, mpStatus, gameMode, triggerAction]);
@@ -267,7 +267,7 @@ export default function BattleScreen({ go }) {
   }, [timer, playerHP, monsterHP, gameMode]);
 
   useEffect(() => {
-    const requiredConf = gameMode === 'pvp' ? 0.75 : 0.8;
+    const requiredConf = gameMode === 'pvp' ? 0.8 : 0.8;
     if (conf >= requiredConf) setFeed("ok");
     else setFeed("tracking");
   }, [conf, gameMode]);
@@ -284,13 +284,23 @@ export default function BattleScreen({ go }) {
   useEffect(() => {
     if (!latestPrediction) return;
     if (isProcessingRef.current) return; // Skip if already processing a hit
+    if (roundTitleText) return; // Block attacks while Title Card (3-2-1-FIGHT) is visible
     if (gameMode === 'pvp' && mpStatus !== 'active') return; // Skip if waiting for PvP
     
     // Live update the confidence bar!
     setConf(latestPrediction.confidence);
 
-    const requiredConf = gameMode === 'pvp' ? 0.75 : 0.8;
-    const requiredFrames = gameMode === 'pvp' ? 3 : 4;
+    const requiredConf = gameMode === 'pvp' ? 0.8 : 0.8;
+    const requiredFrames = gameMode === 'pvp' ? 6 : 4; // Require holding longer in PvP (~200ms)
+
+    // Unlock requireResetRef if user drops their hand or changes gesture
+    if (requireResetRef.current) {
+      if (latestPrediction.char !== targetChar || latestPrediction.confidence < 0.6) {
+        requireResetRef.current = false;
+      } else {
+        return; // Still waiting for user to drop hand
+      }
+    }
 
     if (latestPrediction.char === targetChar && latestPrediction.confidence >= requiredConf) {
       holdCountRef.current += 1;
@@ -298,6 +308,7 @@ export default function BattleScreen({ go }) {
       if (holdCountRef.current >= requiredFrames) {
         isProcessingRef.current = true; // Lock
         holdCountRef.current = 0; // Reset
+        requireResetRef.current = true; // Force user to drop hand before next attack
         
         // Add slight delay to let user see "SIGN LOCKED"
         setTimeout(() => {
@@ -322,7 +333,7 @@ export default function BattleScreen({ go }) {
       // If it drops below threshold or wrong sign, reset the hold counter
       holdCountRef.current = 0;
     }
-  }, [latestPrediction, targetChar, spellIdx, monsterHP, playerHP]);
+  }, [latestPrediction, targetChar, spellIdx, monsterHP, playerHP, gameMode, mpStatus, roundTitleText]);
 
   const landHit = () => {
     const targetHp = Math.max(0, monsterHP - playerDamage);
@@ -631,7 +642,7 @@ export default function BattleScreen({ go }) {
                 <img 
                   src={`/assets/character/hero/${mpOpponentHeroId}/${AVAILABLE_HEROES.find(h => h.id === mpOpponentHeroId)?.preview || 'preview.gif'}`}
                   alt="Opponent Hero"
-                  style={{ width: 100, height: 100, objectFit: "contain", transform: "scaleX(-1)", filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))" }}
+                  style={{ width: 100, height: 100, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))" }}
                 />
               ) : (
                 <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>

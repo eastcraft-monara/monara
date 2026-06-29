@@ -71,6 +71,7 @@ export default function MapScreen({ go }) {
             {floors.map((f) => (
               <FloorRow key={f.n} f={f} onFight={() => {
                 if (!f.locked) {
+                  useGameStore.getState().setGameMode('pve');
                   setCurrentFloor(f.n);
                   go("battle");
                 }
