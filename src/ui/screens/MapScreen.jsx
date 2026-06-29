@@ -26,16 +26,16 @@ export function FloorRow({ f, onFight }) {
           letterSpacing: 1.5, color: C.ashDim }}>{f.z}{f.boss ? " · BOSS" : ""}</div>
         <div style={{ fontFamily: "var(--font-saira)", fontSize: 16, color: C.ash }}>{f.name}</div>
       </div>
-      <div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         {state === "cleared" && <Tag c={C.gestureOk}>✓ Cleared</Tag>}
         {state === "locked" && <Tag c={C.ashDim}>Locked</Tag>}
-        {(state === "current" || state === "open") && (
+        {(state === "current" || state === "open" || state === "cleared") && (
           <button onClick={onFight} style={{
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, letterSpacing: 1,
             color: C.bgDeep, background: f.boss ? C.inkRed : C.inkGold, border: "none",
             padding: "8px 16px", borderRadius: 3, cursor: "pointer", fontWeight: 600,
             textTransform: "uppercase",
-          }}>{f.boss ? "Challenge" : "Fight"}</button>
+          }}>{state === "cleared" ? "Replay" : f.boss ? "Challenge" : "Fight"}</button>
         )}
       </div>
     </div>
