@@ -81,11 +81,41 @@ const useGameStore = create((set, get) => ({
   opponentMissCount: 0,
   
   // Actions
-  setWalletStatus: (connected, access, address) => set({ 
-    walletConnected: connected, 
-    hasAccess: access,
-    walletAddress: address
-  }),
+  setWalletStatus: (connected, access, address) => {
+    set({ 
+      walletConnected: connected, 
+      hasAccess: access,
+      walletAddress: address
+    });
+
+    // Sync progress from Supabase when connected
+    if (connected && address) {
+      import('../lib/supabaseClient').then(({ supabase }) => {
+        supabase
+          .from('user_progress')
+          .select('highest_floor_cleared')
+          .eq('wallet_address', address)
+          .single()
+          .then(({ data, error }) => {
+            if (error) {
+              if (error.code === 'PGRST116') {
+                // Record not found, create new one
+                supabase.from('user_progress').insert({
+                  wallet_address: address,
+                  highest_floor_cleared: 1
+                }).then();
+                set({ highestFloorCleared: 1 });
+              } else {
+                console.error("[Supabase] Error fetching progress:", error);
+              }
+            } else if (data) {
+              console.log(`[Supabase] Loaded progress for ${address}: Floor ${data.highest_floor_cleared}`);
+              set({ highestFloorCleared: data.highest_floor_cleared });
+            }
+          });
+      });
+    }
+  },
   setHero: (heroId) => set({ currentHeroId: heroId }),
   setBattleState: (state) => set({ battleState: state }),
   setScene: (scene) => set({ currentScene: scene }),
@@ -102,9 +132,25 @@ const useGameStore = create((set, get) => ({
   },
   
   // Progression Actions
-  clearFloor: (floorNum) => set((state) => ({
-    highestFloorCleared: Math.max(state.highestFloorCleared, floorNum)
-  })),
+  clearFloor: (floorNum) => {
+    const state = get();
+    const newHighest = Math.max(state.highestFloorCleared, floorNum);
+    set({ highestFloorCleared: newHighest });
+    
+    // Save to Supabase if connected
+    if (state.walletConnected && state.walletAddress) {
+      import('../lib/supabaseClient').then(({ supabase }) => {
+        supabase.from('user_progress').upsert({
+          wallet_address: state.walletAddress,
+          highest_floor_cleared: newHighest,
+          last_updated: new Date().toISOString()
+        }).then(({ error }) => {
+          if (error) console.error("[Supabase] Error saving progress:", error);
+          else console.log(`[Supabase] Saved progress: Floor ${newHighest}`);
+        });
+      });
+    }
+  },
   setCurrentFloor: (floorNum) => set({ currentFloor: floorNum }),
 
   // Multiplayer Actions

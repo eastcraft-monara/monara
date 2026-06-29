@@ -68,17 +68,17 @@ function makeConfig(type, id, frameWidth, frameHeight, scale, options = {}) {
 
 // ─── HERO REGISTRY ────────────────────────────────────────────────
 export const HERO_REGISTRY = {
-  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, { attackCount: 4, idleFps: 6, hasShout: true, yOffset: 0, hp: 120, damage: 35 }),
-  executioner: makeConfig('hero', 'executioner', 130, 92, 2.0, { attackCount: 2, facesLeft: true, yOffset: 0, hp: 150, damage: 45 }),
-  samurai_1: makeConfig('hero', 'samurai_1', 96, 96, 2.0, { attackCount: 5, hasShout: true, yOffset: 0, hp: 110, damage: 28 }),
-  samurai_2: makeConfig('hero', 'samurai_2', 96, 64, 2.0, { attackCount: 4, hasShout: true, yOffset: 0, hp: 95, damage: 32 }),
-  samurai_3: makeConfig('hero', 'samurai_3', 106, 84, 2.0, { attackCount: 4, hasShout: true, yOffset: 0, hp: 105, damage: 30 }),
+  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, { attackCount: 4, idleFps: 6, hasShout: true, yOffset: 30, hp: 120, damage: 35 }),
+  executioner: makeConfig('hero', 'executioner', 130, 92, 2.0, { attackCount: 2, facesLeft: true, yOffset: 30, hp: 150, damage: 45 }),
+  samurai_1: makeConfig('hero', 'samurai_1', 96, 96, 2.0, { attackCount: 5, hasShout: true, yOffset: 30, hp: 110, damage: 28 }),
+  samurai_2: makeConfig('hero', 'samurai_2', 96, 64, 2.0, { attackCount: 4, hasShout: true, yOffset: 30, hp: 95, damage: 32 }),
+  samurai_3: makeConfig('hero', 'samurai_3', 106, 84, 2.0, { attackCount: 4, hasShout: true, yOffset: 45, hp: 105, damage: 30 }),
   samurai_4: makeConfig('hero', 'samurai_4', 96, 96, 2.0, { attackCount: 3, hasShout: true, yOffset: 0, hp: 100, damage: 28 }),
-  samurai_5: makeConfig('hero', 'samurai_5', 96, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 0, hp: 90, damage: 38 }),
-  samurai_6: makeConfig('hero', 'samurai_6', 98, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 0, hp: 115, damage: 25 }),
-  samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 0, hp: 80, damage: 42 }),
-  samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 0, hp: 140, damage: 22 }),
-  wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 0, hp: 110, damage: 36 }),
+  samurai_5: makeConfig('hero', 'samurai_5', 96, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 30, hp: 90, damage: 38 }),
+  samurai_6: makeConfig('hero', 'samurai_6', 98, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 45, hp: 115, damage: 25 }),
+  samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30, hp: 80, damage: 42 }),
+  samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 140, damage: 22 }),
+  wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 110, damage: 36 }),
   wizard: makeConfig('hero', 'wizard', 128, 78, 2.0, { attackCount: 2, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30, hp: 90, damage: 45 }),
 };
 
