@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { C, ghostBtn } from "../theme";
-import { HERO_REGISTRY, AVAILABLE_HEROES } from "../../game/data/characterRegistry";
+import { HERO_REGISTRY, AVAILABLE_HEROES, MONSTER_REGISTRY } from "../../game/data/characterRegistry";
 import { MONSTERS } from "../../game/systems/MonsterDB";
 import { Stage, TopBar, Eyebrow, Row } from "../components/SharedUI";
+import { CharacterModal } from "../components/CharacterModal";
 
 export default function CodexScreen({ go }) {
+  const [selectedChar, setSelectedChar] = useState(null);
+
   const heroes = AVAILABLE_HEROES.map(h => ({
     ...h,
     ...HERO_REGISTRY[h.id],
@@ -43,20 +46,39 @@ export default function CodexScreen({ go }) {
     werewolf: "Preview.gif"
   };
 
-  const monsters = Object.values(MONSTERS).map(m => ({
-    id: m.spriteId,
-    name: m.name,
-    hp: m.hp,
-    damage: m.damage,
-    imgPath: `/assets/character/monster/${m.spriteId}/${monsterPreviews[m.spriteId]}`
-  }));
+  const monsters = Object.values(MONSTERS).map(m => {
+    const config = MONSTER_REGISTRY[m.spriteId] || {};
+    return {
+      ...config,
+      id: m.spriteId,
+      name: m.name,
+      hp: m.hp,
+      damage: m.damage,
+      imgPath: `/assets/character/monster/${m.spriteId}/${monsterPreviews[m.spriteId]}`
+    };
+  });
+
+  const allChars = [...heroes, ...monsters];
+  const selectedIndex = selectedChar ? allChars.findIndex(c => c.id === selectedChar.id) : -1;
+
+  const handlePrev = () => {
+    if (selectedIndex > 0) setSelectedChar(allChars[selectedIndex - 1]);
+    else setSelectedChar(allChars[allChars.length - 1]);
+  };
+
+  const handleNext = () => {
+    if (selectedIndex < allChars.length - 1) setSelectedChar(allChars[selectedIndex + 1]);
+    else setSelectedChar(allChars[0]);
+  };
 
   const renderCard = (char) => (
-    <div key={char.id} style={{
-      background: C.bgPanel, border: `1px solid #ffffff10`,
-      borderRadius: 8, padding: "16px",
+    <div key={char.id} onClick={() => setSelectedChar(char)} style={{
+      background: C.bgPanel, border: `1px solid #ffffff10`, cursor: "pointer",
+      borderRadius: 8, padding: "16px", transition: "transform 0.2s ease, border-color 0.2s ease",
       display: "flex", flexDirection: "column", alignItems: "center", gap: 12
-    }}>
+    }} 
+    onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = C.inkGold; }}
+    onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#ffffff10'; }}>
       <div style={{ 
         width: 150, height: 150, 
         display: 'flex', justifyContent: 'center', alignItems: 'center',
@@ -102,6 +124,15 @@ export default function CodexScreen({ go }) {
         </div>
 
       </div>
+
+      {selectedChar && (
+        <CharacterModal 
+          char={selectedChar} 
+          onClose={() => setSelectedChar(null)} 
+          onPrev={handlePrev}
+          onNext={handleNext}
+        />
+      )}
     </Stage>
   );
 }
