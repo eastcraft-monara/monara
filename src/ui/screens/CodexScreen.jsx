@@ -29,6 +29,7 @@ export default function CodexScreen({ go }) {
     gryphon: "preview.gif",
     dwarf: "Preview.gif",
     mimic: "Preview.gif",
+    headless_horseman: "Preview.gif",
     huge_knight: "Preview.gif",
     harpy: "Preview.gif",
     flying_eye: "Preview.gif",

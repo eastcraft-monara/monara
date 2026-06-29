@@ -33,9 +33,10 @@ export const MONSTERS = {
   23: { name: 'Werewolf', spriteId: 'werewolf', hp: 360, damage: 60 },
   24: { name: 'Stone Golem', spriteId: 'stone_golem', hp: 390, damage: 65 },
   25: { name: 'Skeleton Mage', spriteId: 'skeleton_mage', hp: 420, damage: 70 },
-  26: { name: 'Huge Knight', spriteId: 'huge_knight', hp: 460, damage: 75 },
-  27: { name: 'Dragon', spriteId: 'dragon', hp: 500, damage: 85 },
-  28: { name: 'Demon Boss', spriteId: 'demon_bos', hp: 600, damage: 100 },
+  26: { name: 'Huge Knight', spriteId: 'huge_knight', hp: 440, damage: 72 },
+  27: { name: 'Headless Horseman', spriteId: 'headless_horseman', hp: 460, damage: 75 },
+  28: { name: 'Dragon', spriteId: 'dragon', hp: 500, damage: 85 },
+  29: { name: 'Demon Boss', spriteId: 'demon_bos', hp: 600, damage: 100 },
 };
 
 /**

@@ -4,15 +4,15 @@ import { io } from 'socket.io-client';
 import { MONSTERS } from '../game/systems/MonsterDB';
 
 export const TOWER_FLOORS = [];
-for (let i = 28; i >= 1; i--) {
+for (let i = 29; i >= 1; i--) {
   let zoneId = "Z1";
   let color = 0x4CAF82;
   let isBoss = false;
 
-  if (i >= 26) {
+  if (i >= 27) {
     zoneId = "FINAL";
     color = 0xFFD700;
-    if (i === 28) isBoss = true;
+    if (i === 29) isBoss = true;
   } else if (i >= 21) {
     zoneId = "Z5";
     color = 0xFF5722;
