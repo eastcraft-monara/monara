@@ -617,11 +617,22 @@ export default function BattleScreen({ go }) {
               <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkGold, fontWeight: "bold", textAlign: "center" }}>
                 {HERO_REGISTRY[currentHeroId]?.name || "Samurai"}
               </div>
-              <img 
-                src={`/assets/character/hero/${currentHeroId}/${AVAILABLE_HEROES.find(h => h.id === currentHeroId)?.preview || 'preview.gif'}`}
-                alt="Your Hero"
-                style={{ width: 100, height: 100, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(230,199,140,0.3))" }}
-              />
+              {(() => {
+                const conf = HERO_REGISTRY[currentHeroId] || HERO_REGISTRY['samurai_1'];
+                const scale = 100 / Math.max(conf.frameWidth, conf.frameHeight);
+                return (
+                  <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{
+                      width: conf.frameWidth, height: conf.frameHeight,
+                      backgroundImage: `url(/assets/character/hero/${currentHeroId}/Sprites/IDLE.png)`,
+                      backgroundPosition: 'left top', backgroundRepeat: 'no-repeat',
+                      transform: `scaleX(${scale * (conf.facesLeft ? -1 : 1)}) scaleY(${scale})`,
+                      filter: "drop-shadow(0 0 10px rgba(230,199,140,0.3))",
+                      imageRendering: "pixelated"
+                    }} />
+                  </div>
+                );
+              })()}
               {!mpReady && mpStatus !== 'countdown' && (
                 <button onClick={() => setShowHeroModal(true)} style={{...ghostBtn, padding: "4px 8px", fontSize: 10, marginTop: -8}}>Change</button>
               )}
@@ -639,11 +650,22 @@ export default function BattleScreen({ go }) {
                 {mpOpponentReady ? (HERO_REGISTRY[mpOpponentHeroId]?.name || "Samurai") : "---"}
               </div>
               {mpOpponentReady ? (
-                <img 
-                  src={`/assets/character/hero/${mpOpponentHeroId}/${AVAILABLE_HEROES.find(h => h.id === mpOpponentHeroId)?.preview || 'preview.gif'}`}
-                  alt="Opponent Hero"
-                  style={{ width: 100, height: 100, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))" }}
-                />
+                (() => {
+                  const conf = HERO_REGISTRY[mpOpponentHeroId] || HERO_REGISTRY['samurai_1'];
+                  const scale = 100 / Math.max(conf.frameWidth, conf.frameHeight);
+                  return (
+                    <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{
+                        width: conf.frameWidth, height: conf.frameHeight,
+                        backgroundImage: `url(/assets/character/hero/${mpOpponentHeroId}/Sprites/IDLE.png)`,
+                        backgroundPosition: 'left top', backgroundRepeat: 'no-repeat',
+                        transform: `scaleX(${scale * (conf.facesLeft ? 1 : -1)}) scaleY(${scale})`,
+                        filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))",
+                        imageRendering: "pixelated"
+                      }} />
+                    </div>
+                  );
+                })()
               ) : (
                 <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>
               )}
