@@ -61,37 +61,39 @@ function makeConfig(type, id, frameWidth, frameHeight, scale, options = {}) {
       shout:  options.shoutFps  ?? 8,
     },
     yOffset: options.yOffset ?? 0,
+    hp:      options.hp      ?? (type === 'hero' ? 100 : 0),
+    damage:  options.damage  ?? (type === 'hero' ? 28 : 0),
   };
 }
 
 // ─── HERO REGISTRY ────────────────────────────────────────────────
 export const HERO_REGISTRY = {
-  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, { attackCount: 4, idleFps: 6, hasShout: true, yOffset: 30 }),
-  executioner: makeConfig('hero', 'executioner', 130, 92, 2.0, { attackCount: 2, facesLeft: true, yOffset: 30 }),
-  samurai_1: makeConfig('hero', 'samurai_1', 96, 96, 2.0, { attackCount: 5, hasShout: true, yOffset: 30 }),
-  samurai_2: makeConfig('hero', 'samurai_2', 96, 64, 2.0, { attackCount: 4, hasShout: true, yOffset: 30 }),
-  samurai_3: makeConfig('hero', 'samurai_3', 106, 84, 2.0, { attackCount: 4, hasShout: true, yOffset: 45 }),
-  samurai_4: makeConfig('hero', 'samurai_4', 96, 96, 2.0, { attackCount: 3, hasShout: true, yOffset: 0 }),
-  samurai_5: makeConfig('hero', 'samurai_5', 96, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 30 }),
-  samurai_6: makeConfig('hero', 'samurai_6', 98, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 45 }),
-  samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30 }),
-  samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45 }),
-  wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45 }),
+  demon_samurai: makeConfig('hero', 'demon_samurai', 128, 108, 2.0, { attackCount: 4, idleFps: 6, hasShout: true, yOffset: 30, hp: 120, damage: 35 }),
+  executioner: makeConfig('hero', 'executioner', 130, 92, 2.0, { attackCount: 2, facesLeft: true, yOffset: 30, hp: 150, damage: 45 }),
+  samurai_1: makeConfig('hero', 'samurai_1', 96, 96, 2.0, { attackCount: 5, hasShout: true, yOffset: 30, hp: 110, damage: 28 }),
+  samurai_2: makeConfig('hero', 'samurai_2', 96, 64, 2.0, { attackCount: 4, hasShout: true, yOffset: 30, hp: 95, damage: 32 }),
+  samurai_3: makeConfig('hero', 'samurai_3', 106, 84, 2.0, { attackCount: 4, hasShout: true, yOffset: 45, hp: 105, damage: 30 }),
+  samurai_4: makeConfig('hero', 'samurai_4', 96, 96, 2.0, { attackCount: 3, hasShout: true, yOffset: 0, hp: 100, damage: 28 }),
+  samurai_5: makeConfig('hero', 'samurai_5', 96, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 30, hp: 90, damage: 38 }),
+  samurai_6: makeConfig('hero', 'samurai_6', 98, 64, 2.0, { attackCount: 3, hasShout: true, yOffset: 45, hp: 115, damage: 25 }),
+  samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30, hp: 80, damage: 42 }),
+  samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 140, damage: 22 }),
+  wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 110, damage: 36 }),
 };
 
 // Data array for Hero Selection UI
 export const AVAILABLE_HEROES = [
   { id: 'demon_samurai', name: 'Demon Samurai', preview: 'preview.gif' },
   { id: 'executioner', name: 'Executioner', preview: 'Preview.gif' },
-  { id: 'samurai_1', name: 'Samurai 1', preview: 'Preview.png' },
-  { id: 'samurai_2', name: 'Samurai 2', preview: 'Preview.png' },
+  { id: 'samurai_1', name: 'Samurai 1', preview: 'Preview.gif' },
+  { id: 'samurai_2', name: 'Samurai 2', preview: 'Preview.gif' },
   { id: 'samurai_3', name: 'Samurai 3', preview: 'preview.gif' },
   { id: 'samurai_4', name: 'Samurai 4', preview: 'Preview.gif' },
   { id: 'samurai_5', name: 'Samurai 5', preview: 'preview.gif' },
   { id: 'samurai_6', name: 'Samurai 6', preview: 'preview.gif' },
   { id: 'samurai_archer', name: 'Samurai Archer', preview: 'Preview.gif' },
   { id: 'samurai_panda', name: 'Samurai Panda', preview: 'preview.gif' },
-  { id: 'wolf_samurai', name: 'Wolf Samurai', preview: 'Preview.png' },
+  { id: 'wolf_samurai', name: 'Wolf Samurai', preview: 'Preview.gif' },
 ];
 
 // ─── MONSTER REGISTRY ─────────────────────────────────────────────
@@ -99,7 +101,7 @@ export const MONSTER_REGISTRY = {
   // ZONA 1 (Floor 1-5)
   Imp: makeConfig('monster', 'Imp', 128, 48, 1.8, { attackCount: 1, facesLeft: true, yOffset: 28 }),
   goblin: makeConfig('monster', 'goblin', 115, 78, 1.3, { attackCount: 2, yOffset: 18 }),
-  kobold: makeConfig('monster', 'kobold', 148, 96, 1, { attackCount: 4, facesLeft: true, yOffset: 20 }),
+  kobold: makeConfig('monster', 'kobold', 148, 96, 1, { attackCount: 4, facesLeft: true, hasShout: true, yOffset: 20 }),
   skeleton_warrior: makeConfig('monster', 'skeleton_warrior', 89, 78, 1, { attackCount: 2, yOffset: 28 }),
   masked_orc: makeConfig('monster', 'masked_orc', 150, 80, 1.3, { attackCount: 1, yOffset: 13}),
 
@@ -112,7 +114,7 @@ export const MONSTER_REGISTRY = {
 
   // ZONA 3 (Floor 11-15)
   centaur: makeConfig('monster', 'centaur', 148, 96, 1.6, { attackCount: 1, facesLeft: true, yOffset: 9 }),
-  mimic: makeConfig('monster', 'mimic', 96, 96, 1.4, { attackCount: 1,facesLeft:true, yOffset: 10 }),
+  mimic: makeConfig('monster', 'mimic', 96, 96, 1.4, { attackCount: 1, facesLeft: true, hasShout: true, yOffset: 10 }),
   poison_skull: makeConfig('monster', 'poison_skull', 160, 96, 1.5, { attackCount: 1, yOffset: -10 }),
   flying_eye: makeConfig('monster', 'flying_eye', 150, 150, 1.5, { attackCount: 1, facesLeft:true, yOffset: -12 }),
   satyr_archer: makeConfig('monster', 'satyr_archer', 96, 96, 1.5, { attackCount: 1, facesLeft: true, isRanged: true, hasArrow: true, yOffset: 5 }),
