@@ -91,6 +91,12 @@ const useGameStore = create((set, get) => ({
     // Sync progress from Supabase when connected
     if (connected && address) {
       import('../lib/supabaseClient').then(({ supabase }) => {
+        // Prevent fetching if anon key is not set
+        if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+          console.warn("[Supabase] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing. Skipping progress sync.");
+          return;
+        }
+
         supabase
           .from('user_progress')
           .select('highest_floor_cleared')
@@ -106,7 +112,7 @@ const useGameStore = create((set, get) => ({
                 }).then();
                 set({ highestFloorCleared: 1 });
               } else {
-                console.error("[Supabase] Error fetching progress:", error);
+                console.error("[Supabase] Error fetching progress:", error.message || error);
               }
             } else if (data) {
               console.log(`[Supabase] Loaded progress for ${address}: Floor ${data.highest_floor_cleared}`);
@@ -140,12 +146,14 @@ const useGameStore = create((set, get) => ({
     // Save to Supabase if connected
     if (state.walletConnected && state.walletAddress) {
       import('../lib/supabaseClient').then(({ supabase }) => {
+        if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return; // Skip if no key
+
         supabase.from('user_progress').upsert({
           wallet_address: state.walletAddress,
           highest_floor_cleared: newHighest,
           last_updated: new Date().toISOString()
         }).then(({ error }) => {
-          if (error) console.error("[Supabase] Error saving progress:", error);
+          if (error) console.error("[Supabase] Error saving progress:", error.message || error);
           else console.log(`[Supabase] Saved progress: Floor ${newHighest}`);
         });
       });
