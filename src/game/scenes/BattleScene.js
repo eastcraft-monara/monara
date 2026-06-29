@@ -25,19 +25,7 @@ export default class BattleScene extends Phaser.Scene {
     this.floorId = floorId;
 
     // --- Audio ---
-    // Loop through bgm 1 to 10 based on floor (e.g. floor 11 uses bgm 1)
-    let bgmIndex = ((floorId - 1) % 10) + 1;
-
-    const zoneStr = String(bgmIndex).padStart(3, '0');
-    const bgmName = `rpg_bs${zoneStr}`;
-    const bgmPath = `/assets/audio/Battle/${bgmName}`;
-
-    this.load.audio(`bgm_intro_${floorId}`, `${bgmPath}/unityloop/${bgmName}-intro.ogg`);
-    this.load.audio(`bgm_loop_${floorId}`, `${bgmPath}/${bgmName}.ogg`);
-    this.load.audio(`bgm_victory_${floorId}`, `${bgmPath}/unityloop/${bgmName}-loop.ogg`);
-
-    this.load.audio('sfx_hit', '/assets/audio/hit.wav');
-    this.load.audio('sfx_miss', '/assets/audio/miss.wav');
+    // Audio is now preloaded and started in BootScene to avoid delay during character loading.
 
     // --- Background assets ---
     const bgBase = '/assets/background/Autumn Forest 2D Pixel Art';
@@ -77,18 +65,10 @@ export default class BattleScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('rgba(0,0,0,0)');
 
-    // --- Start BGM ---
-    this.sound.stopAll(); // Stop any previous music
-
-    this.bgmIntro = this.sound.add(`bgm_intro_${this.floorId}`, { loop: true, volume: 0.3 });
-    this.bgmLoop  = this.sound.add(`bgm_loop_${this.floorId}`, { loop: true, volume: 0.3 });
-    
-    // Check initial battle state
-    if (useGameStore.getState().battleState === 'active') {
-      this.bgmLoop.play();
-    } else {
-      this.bgmIntro.play();
-    }
+    // --- BGM References ---
+    // BGM was already started in BootScene. We just grab the references so we can control them later.
+    this.bgmIntro = this.sound.getAll(`bgm_intro_${this.floorId}`)[0];
+    this.bgmLoop  = this.sound.getAll(`bgm_loop_${this.floorId}`)[0];
 
     const w = this.scale.width;
     const h = this.scale.height;
