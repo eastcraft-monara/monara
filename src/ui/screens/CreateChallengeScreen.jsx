@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { C, ghostBtn } from "../theme";
 import useGameStore from "../../store/gameStore";
 import { useTokenBalance } from "../hooks/useTokenBalance";
@@ -12,6 +14,8 @@ export default function CreateChallengeScreen({ go }) {
   const [bet, setBet] = useState(1000);
   const [created, setCreated] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const balance = useTokenBalance();
@@ -24,14 +28,14 @@ export default function CreateChallengeScreen({ go }) {
 
   const handleCreate = async () => {
     if (!publicKey) return;
-    console.log("[Create Room] Starting room creation process...");
+    console.log("Starting challenge creation...");
     try {
       setIsProcessing(true);
       const feeWallet = process.env.NEXT_PUBLIC_FEE_WALLET_ADDRESS;
       const tokenCa = process.env.NEXT_PUBLIC_TOKEN_CA;
       if (!feeWallet || !tokenCa) throw new Error("Fee wallet or Token CA not configured");
 
-      console.log(`[Create Room] Target Fee Wallet: ${feeWallet}, Token CA: ${tokenCa}`);
+      console.log("Preparing payment...");
       const feePubkey = new PublicKey(feeWallet);
       const mintPubkey = new PublicKey(tokenCa);
 
@@ -39,7 +43,7 @@ export default function CreateChallengeScreen({ go }) {
       const feeAta = await getAssociatedTokenAddress(mintPubkey, feePubkey);
 
       const amountToTransfer = bet * Math.pow(10, 6);
-      console.log(`[Create Room] Preparing transaction: ${bet} MONARA to ${feeWallet}`);
+      console.log("Generating transaction...");
 
       const latestBlockhash = await connection.getLatestBlockhash('confirmed');
       const tx = new Transaction({
@@ -59,29 +63,37 @@ export default function CreateChallengeScreen({ go }) {
         )
       );
       
-      console.log("[Create Room] Sending transaction to wallet...");
+      console.log("Awaiting wallet approval...");
       const signature = await sendTransaction(tx, connection);
-      console.log("[Create Room] Transaction sent! Signature:", signature);
+      console.log("Sent for confirmation...");
       
-      console.log("[Create Room] Waiting for confirmation...");
+      console.log("Confirming...");
       await connection.confirmTransaction({
         signature,
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
       }, 'processed');
-      console.log("[Create Room] Transaction confirmed!");
+      console.log("Transaction confirmed.");
 
-      const { connectSocket, createPvPRoom } = useGameStore.getState();
-      console.log("[Create Room] Connecting socket...");
+      const { connectSocket, createPvPRoom, username } = useGameStore.getState();
+      console.log("Initializing multiplayer...");
       connectSocket();
-      
-      const hostName = "Host_" + Math.floor(Math.random() * 1000);
-      console.log(`[Create Room] Emitting createPvPRoom with Handle: ${hostName}, Bet: ${bet}`);
+      const hostName = username || "Anonymous";
+      console.log("Joining lobby...");
       createPvPRoom(bet, hostName, signature, publicKey.toBase58());
       setCreated(true);
     } catch (err) {
-      console.error("[Create Room] ERROR:", err);
-      alert("Transaction failed: " + err.message);
+      console.error("Action failed:", err);
+      let msg = "Failed to process transaction. Please try again.";
+      const errStr = String(err.message || err).toLowerCase();
+      if (errStr.includes("rejected") || errStr.includes("cancelled")) {
+        msg = "Transaction cancelled by user.";
+      } else if (errStr.includes("insufficient") || errStr.includes("balance") || errStr.includes("0x1")) {
+        msg = "Insufficient SOL balance for the network fee.";
+      } else if (errStr.includes("timeout") || errStr.includes("blockhash")) {
+        msg = "Network timeout. Please try again later.";
+      }
+      setErrorMsg(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -134,6 +146,11 @@ export default function CreateChallengeScreen({ go }) {
               <Row label="Pot to winner" value={(bet * 2).toLocaleString() + " $MONARA"} mono />
             </div>
             <div style={{ marginTop: 20 }}>
+              {errorMsg && (
+                <div style={{ color: C.inkRed, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", background: "#ff000010", padding: "8px 10px", borderRadius: 4, marginBottom: 12 }}>
+                  {errorMsg}
+                </div>
+              )}
               {!publicKey ? (
                 <WalletMultiButton />
               ) : (
@@ -158,15 +175,20 @@ export default function CreateChallengeScreen({ go }) {
                   onClick={() => {
                     const link = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/pvp/${mpRoomId}`;
                     navigator.clipboard.writeText(link);
-                    alert("Copied to clipboard!");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
                   }}
                   style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}
                   title="Copy Link"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.inkGold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
+                  {copied ? (
+                    <span style={{ fontSize: 11, color: C.inkGold, fontWeight: "bold", marginRight: 4 }}>COPIED!</span>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.inkGold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  )}
                 </button>
               )}
             </div>

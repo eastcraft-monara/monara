@@ -4,8 +4,10 @@ import { AVAILABLE_HEROES, HERO_REGISTRY } from '@/game/data/characterRegistry';
 import { C, ghostBtn } from '../theme';
 
 export default function HeroSelectionModal({ onClose }) {
-  const { currentHeroId, setHero, triggerAction, currentScene } = useGameStore();
-  
+  const currentHeroId = useGameStore(s => s.currentHeroId);
+  const setHero = useGameStore(s => s.setHero);
+  const triggerAction = useGameStore(s => s.triggerAction);
+  const currentScene = useGameStore(s => s.currentScene);
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(10,6,8,0.9)", zIndex: 10000,

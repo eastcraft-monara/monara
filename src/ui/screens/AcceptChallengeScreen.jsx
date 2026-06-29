@@ -4,15 +4,18 @@ import useGameStore from "../../store/gameStore";
 import { useTokenBalance } from "../hooks/useTokenBalance";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { Stage, TopBar, Eyebrow, Panel, Row, RedBtn, GoldBtn } from "../components/SharedUI";
 import { FlameGlyph } from "../components/Graphics";
 
 export default function AcceptChallengeScreen({ roomId, go }) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [roomBet, setRoomBet] = useState(null);
-  const { publicKey, sendTransaction } = useWallet();
+  const { connected, publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const balance = useTokenBalance();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [roomBet, setRoomBet] = useState(0);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     const { connectSocket, getRoomInfo } = useGameStore.getState();
@@ -38,7 +41,7 @@ export default function AcceptChallengeScreen({ roomId, go }) {
       const playerAta = await getAssociatedTokenAddress(mintPubkey, publicKey);
       const feeAta = await getAssociatedTokenAddress(mintPubkey, feePubkey);
 
-      const amountToTransfer = roomBet * Math.pow(10, 6);
+      const amountToTransfer = BigInt(Math.floor(roomBet * Math.pow(10, 6)));
 
       const latestBlockhash = await connection.getLatestBlockhash('confirmed');
       const tx = new Transaction({
@@ -65,14 +68,24 @@ export default function AcceptChallengeScreen({ roomId, go }) {
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
       }, 'processed');
 
-      const { connectSocket, joinPvPRoom, setGameMode } = useGameStore.getState();
+      const { connectSocket, joinPvPRoom, setGameMode, username } = useGameStore.getState();
       connectSocket();
-      joinPvPRoom(roomId, "Challenger_" + Math.floor(Math.random() * 1000), signature, publicKey.toBase58());
-      setGameMode("pvp");
-      go("battle");
+      const playerName = username || "Anonymous";
+      joinPvPRoom(roomId, playerName, signature, publicKey.toBase58());
+      setGameMode('pvp');
+      go('battle');
     } catch (err) {
-      console.error(err);
-      alert("Transaction failed: " + err.message);
+      console.error("Action failed:", err);
+      let msg = "Failed to process transaction. Please try again.";
+      const errStr = String(err.message || err).toLowerCase();
+      if (errStr.includes("rejected") || errStr.includes("cancelled")) {
+        msg = "Transaction cancelled by user.";
+      } else if (errStr.includes("insufficient") || errStr.includes("balance") || errStr.includes("0x1")) {
+        msg = "Insufficient SOL balance for the network fee.";
+      } else if (errStr.includes("timeout") || errStr.includes("blockhash")) {
+        msg = "Network timeout. Please try again later.";
+      }
+      setErrorMsg(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -89,6 +102,11 @@ export default function AcceptChallengeScreen({ roomId, go }) {
             You have been challenged. Accept to match the stake. 0.02 SOL fee applies.
           </p>
           <div style={{ marginTop: 20 }}>
+            {errorMsg && (
+              <div style={{ color: C.inkRed, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", background: "#ff000010", padding: "8px 10px", borderRadius: 4, marginBottom: 12 }}>
+                {errorMsg}
+              </div>
+            )}
             {!roomBet ? (
               <p style={{ color: C.inkGold, fontFamily: "'IBM Plex Mono', monospace" }}>Fetching room data...</p>
             ) : !publicKey ? (

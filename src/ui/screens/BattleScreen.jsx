@@ -32,8 +32,54 @@ const WORD_SIGNS = [
 
 
 export default function BattleScreen({ go }) {
-  const { latestPrediction, setTargetSign, triggerAction, currentFloor, clearFloor, setCurrentFloor, gameMode, setGameMode, mpRound, mpScores, mpOpponent, mpRoomId, mpStatus, submitRoundResult, mpWinner, mpReady, mpOpponentReady, sendReady, isHost, sendHit, sendMiss, opponentHitCount, opponentMissCount, currentHeroId } = useGameStore();
+  const latestPrediction = useGameStore(s => s.latestPrediction);
+  const setTargetSign = useGameStore(s => s.setTargetSign);
+  const triggerAction = useGameStore(s => s.triggerAction);
+  const currentFloor = useGameStore(s => s.currentFloor);
+  const clearFloor = useGameStore(s => s.clearFloor);
+  const setCurrentFloor = useGameStore(s => s.setCurrentFloor);
+  const gameMode = useGameStore(s => s.gameMode);
+  const setGameMode = useGameStore(s => s.setGameMode);
+  const mpRound = useGameStore(s => s.mpRound);
+  const mpScores = useGameStore(s => s.mpScores);
+  const mpOpponent = useGameStore(s => s.mpOpponent);
+  const mpRoomId = useGameStore(s => s.mpRoomId);
+  const mpStatus = useGameStore(s => s.mpStatus);
+  const submitRoundResult = useGameStore(s => s.submitRoundResult);
+  const mpWinner = useGameStore(s => s.mpWinner);
+  const mpReady = useGameStore(s => s.mpReady);
+  const mpOpponentReady = useGameStore(s => s.mpOpponentReady);
+  const mpOpponentHeroId = useGameStore(s => s.mpOpponentHeroId);
+  const sendReady = useGameStore(s => s.sendReady);
+  const sendUnready = useGameStore(s => s.sendUnready);
+  const isHost = useGameStore(s => s.isHost);
+  const sendHit = useGameStore(s => s.sendHit);
+  const sendMiss = useGameStore(s => s.sendMiss);
+  const opponentHitCount = useGameStore(s => s.opponentHitCount);
+  const opponentMissCount = useGameStore(s => s.opponentMissCount);
+  const currentHeroId = useGameStore(s => s.currentHeroId);
+  
   const [showHeroModal, setShowHeroModal] = useState(false);
+  const hasAutoOpenedHeroModal = useRef(false);
+  const [countdown, setCountdown] = useState(3);
+
+  useEffect(() => {
+    if (gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found') && !hasAutoOpenedHeroModal.current) {
+      setShowHeroModal(true);
+      hasAutoOpenedHeroModal.current = true;
+    }
+  }, [gameMode, mpStatus]);
+
+  useEffect(() => {
+    if (mpStatus === 'countdown') {
+      setCountdown(3);
+      const int = setInterval(() => {
+        setCountdown(c => (typeof c === 'number' && c > 1 ? c - 1 : "FIGHT!"));
+      }, 1000);
+      return () => clearInterval(int);
+    }
+  }, [mpStatus]);
+  
   const floorData = TOWER_FLOORS.find(f => f.n === currentFloor) || TOWER_FLOORS[TOWER_FLOORS.length - 1];
   
   const monsterData = getMonsterForFloor(currentFloor);
@@ -46,7 +92,7 @@ export default function BattleScreen({ go }) {
 
   const [playerHP, setPlayerHP] = useState(maxPlayerHP);
   const [monsterHP, setMonsterHP] = useState(maxMonsterHP);
-  const [showRoundCard, setShowRoundCard] = useState(true);
+  const [showRoundCard, setShowRoundCard] = useState(gameMode !== 'pvp');
   const [showEndModal, setShowEndModal] = useState(false);
 
   useEffect(() => {
@@ -60,8 +106,12 @@ export default function BattleScreen({ go }) {
 
   // Trigger title card on new round/floor
   useEffect(() => {
-    setShowRoundCard(true);
-  }, [mpRound, currentFloor]);
+    if (gameMode === 'pvp') {
+      if (mpStatus === 'active') setShowRoundCard(true);
+    } else {
+      setShowRoundCard(true);
+    }
+  }, [mpRound, currentFloor, mpStatus, gameMode]);
 
   // Hide title card after 2.5s
   useEffect(() => {
@@ -334,17 +384,19 @@ export default function BattleScreen({ go }) {
           {/* TOP SECTION: Toggle & HP Bars */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", pointerEvents: "auto" }}>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setGameMode('pve')} style={{ ...ghostBtn, borderColor: gameMode === 'pve' ? C.inkGold : '#ffffff22', color: gameMode === 'pve' ? C.inkGold : C.ashDim }}>vs MONSTER</button>
-                <button onClick={() => go("pvp")} style={{ ...ghostBtn, borderColor: gameMode === 'pvp' ? C.inkGold : '#ffffff22', color: gameMode === 'pvp' ? C.inkGold : C.ashDim }}>MULTIPLAYER</button>
-              </div>
+              {gameMode !== 'pvp' && (
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setGameMode('pve')} style={{ ...ghostBtn, borderColor: gameMode === 'pve' ? C.inkGold : '#ffffff22', color: gameMode === 'pve' ? C.inkGold : C.ashDim }}>vs MONSTER</button>
+                  <button onClick={() => go("pvp")} style={{ ...ghostBtn, borderColor: gameMode === 'pvp' ? C.inkGold : '#ffffff22', color: gameMode === 'pvp' ? C.inkGold : C.ashDim }}>MULTIPLAYER</button>
+                </div>
+              )}
               <button onClick={() => go("map")} style={ghostBtn}>Flee (Burn 50%)</button>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
               {/* YOU (Left) */}
               <div style={{ flex: 1 }}>
-                <Combatant name="You · Samurai" hp={playerHP} max={maxPlayerHP} color={isHost ? C.aura : C.inkRed} align="left" roundsWon={mpScores["you"] || 0} showDots={gameMode === 'pvp'} />
+                <Combatant name={`You · ${HERO_REGISTRY[currentHeroId]?.name || "Samurai"}`} hp={playerHP} max={maxPlayerHP} color={isHost ? C.aura : C.inkRed} align="left" roundsWon={mpScores["you"] || 0} showDots={gameMode === 'pvp'} />
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -354,7 +406,7 @@ export default function BattleScreen({ go }) {
 
               {/* MONSTER/OPPONENT (Right) */}
               <div style={{ flex: 1 }}>
-                <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · Samurai` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={isHost ? C.inkRed : C.aura} align="right" roundsWon={mpScores["opp"] || 0} showDots={gameMode === 'pvp'} />
+                <Combatant name={gameMode === 'pvp' ? (mpOpponent ? `${mpOpponent.handle} · ${HERO_REGISTRY[mpOpponentHeroId]?.name || "Samurai"}` : "Waiting...") : `${floorData.name} · Fl.${floorData.n}`} hp={monsterHP} max={maxMonsterHP} color={isHost ? C.inkRed : C.aura} align="right" roundsWon={mpScores["opp"] || 0} showDots={gameMode === 'pvp'} />
               </div>
             </div>
           </div>
@@ -499,21 +551,31 @@ export default function BattleScreen({ go }) {
       )}
 
       {/* PvP Pre-match Lobby Modal */}
-      {gameMode === 'pvp' && mpStatus === 'found' && (
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "rgba(10, 6, 8, 0.95)", zIndex: 9999,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          animation: "inkWipe 0.4s ease-out forwards"
-        }}>
-          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>PRE-MATCH LOBBY</h2>
-          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>Both players must be ready to start</p>
+      {gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found' || mpStatus === 'countdown') && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 60, background: "#0a070a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, animation: "inkWipe 0.4s ease-out forwards" }}>
+          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>
+            {mpStatus === 'countdown' ? "MATCH STARTING" : (mpStatus === 'searching' ? "WAITING FOR OPPONENT" : "PRE-MATCH LOBBY")}
+          </h2>
+          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>
+            {mpStatus === 'countdown' ? "Get ready!" : (mpStatus === 'searching' ? "Share the room link to invite someone." : "Both players must be ready to start")}
+          </p>
           
           <div style={{ display: "flex", gap: 32, marginBottom: 40 }}>
             {/* You */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>YOU</div>
-              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpReady ? C.gestureOk : "#444"}`, color: mpReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold" }}>
+              <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkGold, fontWeight: "bold", textAlign: "center" }}>
+                {HERO_REGISTRY[currentHeroId]?.name || "Samurai"}
+              </div>
+              <img 
+                src={`/assets/character/hero/${currentHeroId}/${AVAILABLE_HEROES.find(h => h.id === currentHeroId)?.preview || 'preview.gif'}`}
+                alt="Your Hero"
+                style={{ width: 100, height: 100, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(230,199,140,0.3))" }}
+              />
+              {!mpReady && mpStatus !== 'countdown' && (
+                <button onClick={() => setShowHeroModal(true)} style={{...ghostBtn, padding: "4px 8px", fontSize: 10, marginTop: -8}}>Change</button>
+              )}
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpReady ? C.gestureOk : "#444"}`, color: mpReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: mpReady ? 24 : 0 }}>
                 {mpReady ? "READY ✓" : "WAITING"}
               </div>
             </div>
@@ -523,19 +585,42 @@ export default function BattleScreen({ go }) {
             {/* Opponent */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>{mpOpponent?.handle || "OPPONENT"}</div>
-              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpOpponentReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpOpponentReady ? C.gestureOk : "#444"}`, color: mpOpponentReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold" }}>
+              <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkRed, fontWeight: "bold", textAlign: "center" }}>
+                {mpOpponentReady ? (HERO_REGISTRY[mpOpponentHeroId]?.name || "Samurai") : "---"}
+              </div>
+              {mpOpponentReady ? (
+                <img 
+                  src={`/assets/character/hero/${mpOpponentHeroId}/${AVAILABLE_HEROES.find(h => h.id === mpOpponentHeroId)?.preview || 'preview.gif'}`}
+                  alt="Opponent Hero"
+                  style={{ width: 100, height: 100, objectFit: "contain", transform: "scaleX(-1)", filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))" }}
+                />
+              ) : (
+                <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>
+              )}
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpOpponentReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpOpponentReady ? C.gestureOk : "#444"}`, color: mpOpponentReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: 24 }}>
                 {mpOpponentReady ? "READY ✓" : "WAITING"}
               </div>
             </div>
           </div>
           
-          <GoldBtn 
-            onClick={() => { if (!mpReady) sendReady(); }} 
-            disabled={mpReady}
-            style={{ opacity: mpReady ? 0.5 : 1, cursor: mpReady ? "not-allowed" : "pointer" }}
-          >
-            {mpReady ? "Waiting for Opponent..." : "I'M READY"}
-          </GoldBtn>
+          {mpStatus === 'countdown' ? (
+            <div key={countdown} style={{ fontSize: 64, fontFamily: "var(--font-saira)", fontWeight: "bold", color: C.inkGold, animation: "pop 0.3s ease-out" }}>
+              {countdown}
+            </div>
+          ) : (
+            <GoldBtn 
+              onClick={() => { if (!mpReady) sendReady(); else sendUnready(); }} 
+              style={{ 
+                opacity: 1, 
+                cursor: "pointer",
+                background: mpReady ? "#222" : undefined,
+                color: mpReady ? C.ash : undefined,
+                border: mpReady ? `1px solid #444` : undefined
+              }}
+            >
+              {mpReady ? "CANCEL READY" : "I'M READY"}
+            </GoldBtn>
+          )}
         </div>
       )}
 

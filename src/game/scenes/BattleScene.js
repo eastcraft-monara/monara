@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
 import { CharacterLoader } from '@/game/systems/CharacterLoader';
-import { HERO_REGISTRY, MONSTER_REGISTRY } from '@/game/data/characterRegistry';
+import { HERO_REGISTRY, MONSTER_REGISTRY, AVAILABLE_HEROES } from '@/game/data/characterRegistry';
 import { getMonsterForFloor } from '@/game/systems/MonsterDB';
 
 // ─── TIMING CONSTANTS ─────────────────────────────────────────────
@@ -61,7 +61,13 @@ export default class BattleScene extends Phaser.Scene {
     const monsterConfig   = MONSTER_REGISTRY[monsterSpriteId] ?? MONSTER_REGISTRY['dragon'];
 
     CharacterLoader.preload(this, heroConfig);
-    CharacterLoader.preload(this, monsterConfig);
+    if (gameStore.gameMode !== 'pvp') {
+      CharacterLoader.preload(this, monsterConfig);
+    } else {
+      AVAILABLE_HEROES.forEach(hero => {
+        CharacterLoader.preload(this, HERO_REGISTRY[hero.id]);
+      });
+    }
 
     // Store monster config to be used in create()
     this._heroConfig    = heroConfig;
@@ -163,7 +169,13 @@ export default class BattleScene extends Phaser.Scene {
 
     // --- Setup animations ---
     CharacterLoader.setupAnimations(this, this._heroConfig);
-    CharacterLoader.setupAnimations(this, this._monsterConfig);
+    if (gameMode !== 'pvp') {
+      CharacterLoader.setupAnimations(this, this._monsterConfig);
+    } else {
+      AVAILABLE_HEROES.forEach(hero => {
+        CharacterLoader.setupAnimations(this, HERO_REGISTRY[hero.id]);
+      });
+    }
 
     // --- Player sprite (left) ---
     this.playerSprite = CharacterLoader.createSprite(
@@ -174,15 +186,22 @@ export default class BattleScene extends Phaser.Scene {
 
     // --- Monster / opponent sprite (right) ---
     if (gameMode === 'pvp') {
+      const oppHeroId = gameStore.mpOpponentHeroId || 'demon_samurai';
+      const oppHeroConfig = HERO_REGISTRY[oppHeroId] || HERO_REGISTRY['demon_samurai'];
+      
+      CharacterLoader.setupAnimations(this, oppHeroConfig);
+
       this.monsterSprite = CharacterLoader.createSprite(
-        this, this._heroConfig,
+        this, oppHeroConfig,
         w * 0.75, groundY,
         { flipX: true, bgScale: 1 }
       );
-      if (gameStore.isHost) {
-        this.monsterSprite.setTint(0xff7777);
-      } else {
-        this.playerSprite.setTint(0xff7777);
+      if (gameStore.currentHeroId === oppHeroId) {
+        if (gameStore.isHost) {
+          this.monsterSprite.setTint(0xff7777);
+        } else {
+          this.playerSprite.setTint(0xff7777);
+        }
       }
     } else {
       this.monsterSprite = CharacterLoader.createSprite(
@@ -462,7 +481,7 @@ export default class BattleScene extends Phaser.Scene {
     if (!dead?.play) return;
 
     const deadAnims = CharacterLoader.getAnimSet(dead);
-    console.log(`[BattleScene] playDeathSequence(isPlayer=${isPlayer}). Playing death animation: ${deadAnims.death} on ${dead.charId}`);
+    // console.log(`[BattleScene] playDeathSequence(isPlayer=${isPlayer}). Playing death animation: ${deadAnims.death} on ${dead.charId}`);
     this.playSpriteAnim(dead, deadAnims.death);
     this.playVictorySequence(winner);
   }

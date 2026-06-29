@@ -79,7 +79,7 @@ export const HERO_REGISTRY = {
   samurai_archer: makeConfig('hero', 'samurai_archer', 96, 80, 2.0, { attackCount: 1, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30, hp: 80, damage: 42 }),
   samurai_panda: makeConfig('hero', 'samurai_panda', 128, 64, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 140, damage: 22 }),
   wolf_samurai: makeConfig('hero', 'wolf_samurai', 192, 58, 2.0, { attackCount: 3, hasShout: true, facesLeft: true, yOffset: 45, hp: 110, damage: 36 }),
-  wizard: makeConfig('hero', 'wizard', 128, 78, 2.0, { attackCount: 2, hasShout: false, isRanged: true, hasArrow: true, yOffset: 30, hp: 90, damage: 45 }),
+  wizard: makeConfig('hero', 'wizard', 128, 78, 2.0, { attackCount: 2, hasShout: false, isRanged: true, hasArrow: false, yOffset: 30, hp: 90, damage: 45 }),
 };
 
 // Data array for Hero Selection UI
@@ -97,6 +97,10 @@ export const AVAILABLE_HEROES = [
   { id: 'wolf_samurai', name: 'Wolf Samurai', preview: 'Preview.gif' },
   { id: 'wizard', name: 'Wizard', preview: 'Preview.gif' },
 ];
+
+AVAILABLE_HEROES.forEach(h => {
+  if (HERO_REGISTRY[h.id]) HERO_REGISTRY[h.id].name = h.name;
+});
 
 // ─── MONSTER REGISTRY ─────────────────────────────────────────────
 export const MONSTER_REGISTRY = {

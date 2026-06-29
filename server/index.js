@@ -107,24 +107,45 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("opponent_joined", { opponentHandle: playerHandle });
   });
 
-  socket.on("player_ready", ({ roomId }) => {
+  socket.on("player_ready", ({ roomId, heroId }) => {
     const room = rooms[roomId];
-    if (!room || !room.players[socket.id]) return;
-    
-    room.players[socket.id].ready = true;
-    console.log(`[Ready] ${room.players[socket.id].handle} is ready in room ${roomId}`);
-    
-    // Notify opponent
-    socket.to(roomId).emit("player_ready_status", { handle: room.players[socket.id].handle });
+    if (room && room.players[socket.id]) {
+      room.players[socket.id].ready = true;
+      room.players[socket.id].heroId = heroId || 'demon_samurai';
+      console.log(`[Ready] ${room.players[socket.id].handle} is ready in room ${roomId} with ${room.players[socket.id].heroId}`);
+      
+      // Notify opponent
+      socket.to(roomId).emit("player_ready_status", { 
+        handle: room.players[socket.id].handle,
+        heroId: room.players[socket.id].heroId
+      });
     
     // Check if all players are ready
-    if (room.playerIds.length === 2 && room.playerIds.every(id => room.players[id].ready)) {
-      if (room.status === 'active') {
-        console.log(`[Start] Both players ready in room ${roomId}. Starting match!`);
-        const seed = generateSeed();
-        room.currentSeed = seed;
-        io.to(roomId).emit("battle_start", { seed, round: room.round });
+      if (room.playerIds.length === 2 && room.playerIds.every(id => room.players[id].ready)) {
+        if (room.status === 'active') {
+          console.log(`[Start] Both players ready in room ${roomId}. Starting countdown!`);
+          
+          io.to(roomId).emit("countdown_start");
+          
+          setTimeout(() => {
+            const seed = generateSeed();
+            room.currentSeed = seed;
+            io.to(roomId).emit("battle_start", { seed, round: room.round });
+          }, 3000);
+        }
       }
+    }
+  });
+
+  socket.on("player_unready", ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room && room.players[socket.id]) {
+      room.players[socket.id].ready = false;
+      console.log(`[Unready] ${room.players[socket.id].handle} is NOT ready in room ${roomId}`);
+      
+      socket.to(roomId).emit("player_unready_status", { 
+        handle: room.players[socket.id].handle 
+      });
     }
   });
 

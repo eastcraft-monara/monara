@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import useGameStore from '@/store/gameStore';
 import { C } from "../theme";
 
 export function Bar({ value, max, color, bg = "#000", height = 18, glow, flipDrain }) {

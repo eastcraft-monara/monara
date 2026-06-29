@@ -53,8 +53,9 @@ const useGameStore = create((set, get) => ({
   gameMode: 'pve', // 'pve' or 'pvp'
   
   // Progression State
-  highestFloorCleared: 0,
-  currentFloor: 1,
+  highestFloorCleared: 1,
+  username: null,
+  walletConnected: false,
   
   // Gesture State
   latestPrediction: null, // { char: 'A', confidence: 0.95, timestamp: 1234 }
@@ -82,6 +83,7 @@ const useGameStore = create((set, get) => ({
   
   // Actions
   setWalletStatus: (connected, access, address) => {
+    console.log("setWalletStatus called:", { connected, access, address });
     set({ 
       walletConnected: connected, 
       hasAccess: access,
@@ -90,33 +92,46 @@ const useGameStore = create((set, get) => ({
 
     // Sync progress from Supabase when connected
     if (connected && address) {
+      console.log("Wallet connected and address provided, fetching from Supabase...");
       import('../lib/supabaseClient').then(({ supabase }) => {
         // Prevent fetching if anon key is not set
         if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-          console.warn("[Supabase] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing. Skipping progress sync.");
+          console.warn("DB config missing. Skipping sync.");
           return;
         }
 
         supabase
           .from('user_progress')
-          .select('highest_floor_cleared')
+          .select('highest_floor_cleared, username')
           .eq('wallet_address', address)
           .single()
           .then(({ data, error }) => {
-            if (error) {
+              if (error) {
               if (error.code === 'PGRST116') {
                 // Record not found, create new one
+                const defaultUsername = 'Player_' + Math.floor(Math.random() * 16777215).toString(16).toUpperCase().padStart(6, '0');
                 supabase.from('user_progress').insert({
                   wallet_address: address,
-                  highest_floor_cleared: 1
-                }).then();
-                set({ highestFloorCleared: 1 });
+                  username: defaultUsername,
+                  highest_floor_cleared: 0
+                }).then(({ error: insertErr }) => {
+                  if (insertErr) console.error("Insert error:", insertErr);
+                });
+                set({ highestFloorCleared: 0, username: defaultUsername });
               } else {
-                console.error("[Supabase] Error fetching progress:", error.message || error);
+                console.error("Error fetching progress:", error);
               }
             } else if (data) {
-              console.log(`[Supabase] Loaded progress for ${address}: Floor ${data.highest_floor_cleared}`);
-              set({ highestFloorCleared: data.highest_floor_cleared });
+              console.log(`Loaded progress: Floor ${data.highest_floor_cleared}, Username ${data.username}`);
+              let u = data.username;
+              if (!u) {
+                 u = 'Player_' + Math.floor(Math.random() * 16777215).toString(16).toUpperCase().padStart(6, '0');
+                 supabase.from('user_progress').update({ username: u }).eq('wallet_address', address).then(({ error: updateErr }) => {
+                   if (updateErr) console.error("Update error:", updateErr);
+                   else console.log("Successfully saved auto-generated username:", u);
+                 });
+              }
+              set({ highestFloorCleared: data.highest_floor_cleared, username: u });
             }
           });
       });
@@ -153,65 +168,97 @@ const useGameStore = create((set, get) => ({
           highest_floor_cleared: newHighest,
           last_updated: new Date().toISOString()
         }).then(({ error }) => {
-          if (error) console.error("[Supabase] Error saving progress:", error.message || error);
-          else console.log(`[Supabase] Saved progress: Floor ${newHighest}`);
+          if (error) console.error("Error saving progress");
+          else console.log(`Saved progress: Floor ${newHighest}`);
         });
       });
     }
   },
   setCurrentFloor: (floorNum) => set({ currentFloor: floorNum }),
 
+  updateUsername: async (newUsername) => {
+    const state = get();
+    if (!state.walletConnected || !state.walletAddress) return { success: false, error: "Not connected" };
+    
+    const { supabase } = await import('../lib/supabaseClient');
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return { success: false, error: "DB config missing" };
+
+    const { error } = await supabase.from('user_progress').update({ username: newUsername }).eq('wallet_address', state.walletAddress);
+    if (error) {
+      if (error.code === '23505') { // Postgres unique violation
+        return { success: false, error: "This name is already taken. Please try another." };
+      }
+      console.error("Supabase update error:", error);
+      return { success: false, error: "Failed to save name. Please try again." };
+    }
+    set({ username: newUsername });
+    return { success: true };
+  },
+
   // Multiplayer Actions
   connectSocket: () => {
     if (!socketInstance) {
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:3001";
-      console.log("[Socket] Attempting to connect to:", wsUrl);
+      console.log("Connecting multiplayer...");
       socketInstance = io(wsUrl, { transports: ["websocket"], upgrade: false });
       
       socketInstance.on("connect", () => {
-        console.log("[Socket] Connected successfully! ID:", socketInstance.id);
+        console.log("Multiplayer connected.");
         set({ socketConnected: true });
       });
       
       socketInstance.on("connect_error", (err) => {
-        console.error("[Socket] Connection Error:", err.message);
+        console.error("Multiplayer connection error.");
       });
       
       socketInstance.on("disconnect", (reason) => {
-        console.warn("[Socket] Disconnected. Reason:", reason);
-        set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null, mpReady: false, mpOpponentReady: false });
+        console.warn("Multiplayer disconnected.");
+        set({ socketConnected: false, mpStatus: 'idle', mpRoomId: null, mpOpponent: null, mpReady: false, mpOpponentReady: false, mpOpponentHeroId: null });
       });
       
       socketInstance.on("room_created", ({ roomId }) => {
-        console.log(`[Socket] Room Created successfully: ${roomId}`);
+        console.log("Room Created.");
         set({ mpRoomId: roomId, mpStatus: 'searching', isHost: true });
       });
       
       socketInstance.on("room_joined", ({ roomId, opponentHandle }) => {
-        console.log(`[Socket] Joined Room: ${roomId}, Opponent: ${opponentHandle}`);
+        console.log("Joined Room.");
         set({ mpRoomId: roomId, mpOpponent: { handle: opponentHandle }, mpStatus: 'found', isHost: false });
       });
       
       socketInstance.on("opponent_joined", ({ opponentHandle }) => {
-        console.log(`[Socket] Opponent Joined: ${opponentHandle}`);
+        console.log("Opponent Joined.");
         set({ mpOpponent: { handle: opponentHandle }, mpStatus: 'found' });
       });
       
-      socketInstance.on("player_ready_status", ({ handle }) => {
+      socketInstance.on("player_ready_status", ({ handle, heroId }) => {
         const { mpOpponent } = get();
         if (mpOpponent && mpOpponent.handle === handle) {
-          console.log(`[Socket] Opponent ${handle} is READY`);
-          set({ mpOpponentReady: true });
+          console.log("Opponent is READY.");
+          set({ mpOpponentReady: true, mpOpponentHeroId: heroId });
         }
       });
       
+      socketInstance.on("player_unready_status", ({ handle }) => {
+        const { mpOpponent } = get();
+        if (mpOpponent && mpOpponent.handle === handle) {
+          console.log("Opponent is UNREADY.");
+          set({ mpOpponentReady: false });
+        }
+      });
+      
+      socketInstance.on("countdown_start", () => {
+        console.log("Countdown started!");
+        set({ mpStatus: 'countdown' });
+      });
+
       socketInstance.on("battle_start", ({ seed, round }) => {
-        console.log(`[Socket] Battle Started! Round: ${round}, Seed: ${seed}`);
+        console.log(`Battle Started! Round: ${round}`);
         set({ mpSeed: seed, mpRound: round, mpStatus: 'active' });
       });
       
       socketInstance.on("round_resolved", ({ round, scores, winnerHandle }) => {
-        console.log(`[Socket] Round ${round} Resolved. Winner: ${winnerHandle}, Scores:`, scores);
+        console.log(`Round ${round} Resolved.`);
         const { mpHandle, mpOpponent } = get();
         let youScore = 0;
         let oppScore = 0;
@@ -221,12 +268,12 @@ const useGameStore = create((set, get) => ({
       });
       
       socketInstance.on("match_result", ({ winnerHandle, loserHandle }) => {
-        console.log(`[Socket] Match Ended. Winner: ${winnerHandle}`);
+        console.log("Match Ended.");
         set({ mpWinner: winnerHandle, mpStatus: 'ended' });
       });
       
       socketInstance.on("error", (err) => {
-        console.error("[Socket] Server Error:", err.message || err);
+        console.error("Multiplayer Server Error.");
       });
       
       socketInstance.on("opponent_landmarks", (landmarks) => set({ opponentLandmarks: landmarks }));
@@ -236,13 +283,25 @@ const useGameStore = create((set, get) => ({
   },
   disconnectSocket: () => {
     if (socketInstance) {
-      console.log("[Socket] Manually disconnecting socket.");
+      console.log("Manually disconnecting.");
       socketInstance.disconnect();
       socketInstance = null;
     }
   },
   createPvPRoom: (bet, playerHandle, signature, pubkey) => {
-    set({ mpHandle: playerHandle });
+    set({ 
+      mpHandle: playerHandle,
+      mpOpponent: null,
+      mpScores: {},
+      mpRound: 1,
+      mpWinner: null,
+      mpReady: false,
+      mpOpponentReady: false,
+      mpOpponentHeroId: null,
+      opponentLandmarks: null,
+      opponentHitCount: 0,
+      opponentMissCount: 0
+    });
     if (socketInstance) {
       socketInstance.emit("create_room", { bet, playerHandle, signature, pubkey });
     }
@@ -255,16 +314,36 @@ const useGameStore = create((set, get) => ({
     }
   },
   joinPvPRoom: (roomId, playerHandle, signature, pubkey) => {
-    set({ mpHandle: playerHandle, mpRoomId: roomId });
+    set({ 
+      mpHandle: playerHandle, 
+      mpRoomId: roomId,
+      mpOpponent: null,
+      mpScores: {},
+      mpRound: 1,
+      mpWinner: null,
+      mpReady: false,
+      mpOpponentReady: false,
+      mpOpponentHeroId: null,
+      opponentLandmarks: null,
+      opponentHitCount: 0,
+      opponentMissCount: 0
+    });
     if (socketInstance) {
       socketInstance.emit("join_room", { roomId, playerHandle, signature, pubkey });
     }
   },
   sendReady: () => {
+    const { mpRoomId, currentHeroId } = get();
+    if (socketInstance && mpRoomId) {
+      socketInstance.emit("player_ready", { roomId: mpRoomId, heroId: currentHeroId });
+      set({ mpReady: true });
+    }
+  },
+  sendUnready: () => {
     const { mpRoomId } = get();
     if (socketInstance && mpRoomId) {
-      socketInstance.emit("player_ready", { roomId: mpRoomId });
-      set({ mpReady: true });
+      socketInstance.emit("player_unready", { roomId: mpRoomId });
+      set({ mpReady: false });
     }
   },
   sendHit: () => {
