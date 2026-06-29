@@ -29,6 +29,55 @@ const WORD_SIGNS = [
   { word: "SWORD", letters: ["S", "W", "O", "R", "D"] },
 ];
 
+function SpriteView({ conf, type, facing, size = 180 }) {
+  const [frame, setFrame] = useState(0);
+  const [frameCount, setFrameCount] = useState(1);
+  const [bgImg, setBgImg] = useState("");
+
+  useEffect(() => {
+    const src = `/assets/character/${type}/${conf.id}/Sprites/IDLE.png`;
+    setBgImg(src);
+    const img = new window.Image();
+    img.onload = () => {
+      setFrameCount(Math.max(1, Math.floor(img.width / conf.frameWidth)));
+    };
+    img.src = src;
+  }, [conf, type]);
+
+  useEffect(() => {
+    if (frameCount <= 1) return;
+    const interval = setInterval(() => {
+      setFrame(f => (f + 1) % frameCount);
+    }, 1000 / (conf.animFps?.idle || 8));
+    return () => clearInterval(interval);
+  }, [frameCount, conf]);
+
+  // Adjust scale based on requested size, but allow some padding by scaling to size*0.9
+  const scale = (size * 0.9) / Math.max(conf.frameWidth, conf.frameHeight);
+  // facing="right" means character is on left side looking right (Player 1)
+  // facing="left" means character is on right side looking left (Player 2)
+  let flip = 1;
+  if (facing === 'right') {
+    flip = conf.facesLeft ? -1 : 1;
+  } else {
+    flip = conf.facesLeft ? 1 : -1;
+  }
+
+  return (
+    <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        width: conf.frameWidth, height: conf.frameHeight,
+        backgroundImage: `url(${bgImg})`,
+        backgroundPosition: `-${frame * conf.frameWidth}px 0`,
+        backgroundRepeat: 'no-repeat',
+        transform: `scaleX(${scale * flip}) scaleY(${scale})`,
+        filter: `drop-shadow(0 0 10px ${facing === 'left' ? 'rgba(214,40,40,0.4)' : 'rgba(230,199,140,0.4)'})`,
+        imageRendering: "pixelated"
+      }} />
+    </div>
+  );
+}
+
 export default function BattleScreen({ go }) {
   const latestPrediction = useGameStore(s => s.latestPrediction);
   const setTargetSign = useGameStore(s => s.setTargetSign);
@@ -602,37 +651,26 @@ export default function BattleScreen({ go }) {
 
       {/* PvP Pre-match Lobby Modal */}
       {gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found') && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 60, background: "#0a070a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, animation: "inkWipe 0.4s ease-out forwards" }}>
-          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>
+        <div style={{ 
+          position: "absolute", inset: 0, zIndex: 60, 
+          background: "#0a070a url(/assets/stage_bg.png) center center / cover", 
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, animation: "inkWipe 0.4s ease-out forwards" 
+        }}>
+          <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8, textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}>
             {mpStatus === 'searching' ? "WAITING FOR OPPONENT" : "PRE-MATCH LOBBY"}
           </h2>
-          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>
+          <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32, textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>
             {mpStatus === 'searching' ? "Share the room link to invite someone." : "Both players must be ready to start"}
           </p>
           
-          <div style={{ display: "flex", gap: 32, marginBottom: 40 }}>
+          <div style={{ display: "flex", gap: 32, marginBottom: 40, background: "rgba(0,0,0,0.6)", padding: "20px 40px", borderRadius: 16, backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.1)" }}>
             {/* You */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>YOU</div>
               <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkGold, fontWeight: "bold", textAlign: "center" }}>
                 {HERO_REGISTRY[currentHeroId]?.name || "Samurai"}
               </div>
-              {(() => {
-                const conf = HERO_REGISTRY[currentHeroId] || HERO_REGISTRY['samurai_1'];
-                const scale = 100 / Math.max(conf.frameWidth, conf.frameHeight);
-                return (
-                  <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{
-                      width: conf.frameWidth, height: conf.frameHeight,
-                      backgroundImage: `url(/assets/character/hero/${currentHeroId}/Sprites/IDLE.png)`,
-                      backgroundPosition: 'left top', backgroundRepeat: 'no-repeat',
-                      transform: `scaleX(${scale * (conf.facesLeft ? -1 : 1)}) scaleY(${scale})`,
-                      filter: "drop-shadow(0 0 10px rgba(230,199,140,0.3))",
-                      imageRendering: "pixelated"
-                    }} />
-                  </div>
-                );
-              })()}
+              <SpriteView conf={HERO_REGISTRY[currentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="right" />
               {!mpReady && mpStatus !== 'countdown' && (
                 <button onClick={() => setShowHeroModal(true)} style={{...ghostBtn, padding: "4px 8px", fontSize: 10, marginTop: -8}}>Change</button>
               )}
@@ -644,28 +682,13 @@ export default function BattleScreen({ go }) {
             <div style={{ color: C.ashDim, alignSelf: "center", fontFamily: "var(--font-saira)", fontSize: 20 }}>VS</div>
             
             {/* Opponent */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 140 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>{mpOpponent?.handle || "OPPONENT"}</div>
               <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkRed, fontWeight: "bold", textAlign: "center" }}>
                 {mpOpponentReady ? (HERO_REGISTRY[mpOpponentHeroId]?.name || "Samurai") : "---"}
               </div>
               {mpOpponentReady ? (
-                (() => {
-                  const conf = HERO_REGISTRY[mpOpponentHeroId] || HERO_REGISTRY['samurai_1'];
-                  const scale = 100 / Math.max(conf.frameWidth, conf.frameHeight);
-                  return (
-                    <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{
-                        width: conf.frameWidth, height: conf.frameHeight,
-                        backgroundImage: `url(/assets/character/hero/${mpOpponentHeroId}/Sprites/IDLE.png)`,
-                        backgroundPosition: 'left top', backgroundRepeat: 'no-repeat',
-                        transform: `scaleX(${scale * (conf.facesLeft ? 1 : -1)}) scaleY(${scale})`,
-                        filter: "drop-shadow(0 0 10px rgba(214,40,40,0.3))",
-                        imageRendering: "pixelated"
-                      }} />
-                    </div>
-                  );
-                })()
+                <SpriteView conf={HERO_REGISTRY[mpOpponentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="left" />
               ) : (
                 <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>
               )}
