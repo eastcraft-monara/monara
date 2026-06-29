@@ -104,22 +104,60 @@ export default function BattleScreen({ go }) {
     }
   }, [monsterHP, playerHP]);
 
-  // Trigger title card on new round/floor
-  useEffect(() => {
-    if (gameMode === 'pvp') {
-      if (mpStatus === 'active') setShowRoundCard(true);
-    } else {
-      setShowRoundCard(true);
-    }
-  }, [mpRound, currentFloor, mpStatus, gameMode]);
+  const [roundTitleText, setRoundTitleText] = useState(null);
+  const [pvePhase, setPvePhase] = useState('init');
 
-  // Hide title card after 2.5s
+  // Unified sequence for PvE
   useEffect(() => {
-    if (showRoundCard) {
-      const t = setTimeout(() => setShowRoundCard(false), 2500);
+    if (gameMode === 'pvp') return;
+    
+    let isCancelled = false;
+    setPvePhase('countdown');
+    
+    const sequence = async () => {
+      setRoundTitleText("3");
+      await new Promise(r => setTimeout(r, 800));
+      if (isCancelled) return;
+      setRoundTitleText("2");
+      await new Promise(r => setTimeout(r, 800));
+      if (isCancelled) return;
+      setRoundTitleText("1");
+      await new Promise(r => setTimeout(r, 800));
+      if (isCancelled) return;
+      setRoundTitleText("FIGHT!");
+      setPvePhase('active');
+      
+      await new Promise(r => setTimeout(r, 1500));
+      if (isCancelled) return;
+      setRoundTitleText(null);
+    };
+    
+    sequence();
+    
+    return () => { isCancelled = true; };
+  }, [currentFloor, gameMode]); // Also need to re-trigger on rematch (handled later)
+
+  // Title logic for PvP
+  useEffect(() => {
+    if (gameMode !== 'pvp') return;
+    
+    if (mpStatus === 'countdown') {
+      setRoundTitleText("3");
+    } else if (mpStatus === 'active' && roundTitleText) {
+      setRoundTitleText(`ROUND ${mpRound || 1}\nFIGHT!`);
+      const t = setTimeout(() => setRoundTitleText(null), 1500);
       return () => clearTimeout(t);
     }
-  }, [showRoundCard]);
+  }, [mpStatus, gameMode, mpRound]);
+
+  // PvP Countdown ticker
+  useEffect(() => {
+    if (gameMode !== 'pvp' || mpStatus !== 'countdown') return;
+    const int = setInterval(() => {
+      setRoundTitleText(c => (c === "3" ? "2" : (c === "2" ? "1" : c)));
+    }, 1000);
+    return () => clearInterval(int);
+  }, [mpStatus, gameMode]);
 
   const [signIdx, setSignIdx] = useState(() => Math.floor(Math.random() * 100)); // Start random
   const [spellIdx, setSpellIdx] = useState(0);
@@ -170,12 +208,13 @@ export default function BattleScreen({ go }) {
   useEffect(() => {
     if (!modelReady) return; // Pause timer until AI model is fully loaded
     if (gameMode === 'pvp') return; // Disable timer entirely for PvP
+    if (pvePhase !== 'active') return; // Disable timer during countdown
 
     const id = setInterval(() => {
       setTimer((t) => (t > 0 ? +(t - 0.1).toFixed(1) : 0));
     }, 100);
     return () => clearInterval(id);
-  }, [signIdx, modelReady, gameMode]);
+  }, [signIdx, modelReady, gameMode, pvePhase]);
 
   const prevOppHit = useRef(opponentHitCount);
   const prevOppMiss = useRef(opponentMissCount);
@@ -348,17 +387,16 @@ export default function BattleScreen({ go }) {
         </div>
 
         {/* TITLE CARD */}
-        {showRoundCard && (
+        {roundTitleText && (
           <div style={{
             position: "absolute", inset: 0,
             display: "flex", justifyContent: "center", alignItems: "center",
-            zIndex: 50, pointerEvents: "none",
-            animation: "titleCardFade 2.5s ease-in-out forwards"
+            zIndex: 50, pointerEvents: "none"
           }}>
             {/* Dynamic Round Text (No Logo) */}
-            <div style={{
+            <div key={roundTitleText} style={{
               fontFamily: "var(--font-saira)",
-              fontSize: "96px",
+              fontSize: roundTitleText === "FIGHT!" || roundTitleText.includes("ROUND") ? "96px" : "160px",
               fontWeight: 900,
               fontStyle: "italic",
               textTransform: "uppercase",
@@ -371,9 +409,10 @@ export default function BattleScreen({ go }) {
               position: "relative",
               zIndex: 2,
               letterSpacing: "4px",
-              whiteSpace: "pre-line"
+              whiteSpace: "pre-line",
+              animation: "pop 0.4s ease-out forwards"
             }}>
-              {gameMode === 'pvp' ? `ROUND ${mpRound || 1}\nFIGHT` : "FIGHT"}
+              {roundTitleText}
             </div>
           </div>
         )}
@@ -551,13 +590,13 @@ export default function BattleScreen({ go }) {
       )}
 
       {/* PvP Pre-match Lobby Modal */}
-      {gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found' || mpStatus === 'countdown') && (
+      {gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found') && (
         <div style={{ position: "absolute", inset: 0, zIndex: 60, background: "#0a070a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, animation: "inkWipe 0.4s ease-out forwards" }}>
           <h2 style={{ fontFamily: "var(--font-saira)", fontWeight: 700, fontSize: 24, color: C.inkGold, marginBottom: 8 }}>
-            {mpStatus === 'countdown' ? "MATCH STARTING" : (mpStatus === 'searching' ? "WAITING FOR OPPONENT" : "PRE-MATCH LOBBY")}
+            {mpStatus === 'searching' ? "WAITING FOR OPPONENT" : "PRE-MATCH LOBBY"}
           </h2>
           <p style={{ fontFamily: "var(--font-saira)", color: C.ashDim, fontSize: 14, marginBottom: 32 }}>
-            {mpStatus === 'countdown' ? "Get ready!" : (mpStatus === 'searching' ? "Share the room link to invite someone." : "Both players must be ready to start")}
+            {mpStatus === 'searching' ? "Share the room link to invite someone." : "Both players must be ready to start"}
           </p>
           
           <div style={{ display: "flex", gap: 32, marginBottom: 40 }}>
@@ -603,24 +642,18 @@ export default function BattleScreen({ go }) {
             </div>
           </div>
           
-          {mpStatus === 'countdown' ? (
-            <div key={countdown} style={{ fontSize: 64, fontFamily: "var(--font-saira)", fontWeight: "bold", color: C.inkGold, animation: "pop 0.3s ease-out" }}>
-              {countdown}
-            </div>
-          ) : (
-            <GoldBtn 
-              onClick={() => { if (!mpReady) sendReady(); else sendUnready(); }} 
-              style={{ 
-                opacity: 1, 
-                cursor: "pointer",
-                background: mpReady ? "#222" : undefined,
-                color: mpReady ? C.ash : undefined,
-                border: mpReady ? `1px solid #444` : undefined
-              }}
-            >
-              {mpReady ? "CANCEL READY" : "I'M READY"}
-            </GoldBtn>
-          )}
+          <GoldBtn 
+            onClick={() => { if (!mpReady) sendReady(); else sendUnready(); }} 
+            style={{ 
+              opacity: 1, 
+              cursor: "pointer",
+              background: mpReady ? "#222" : undefined,
+              color: mpReady ? C.ash : undefined,
+              border: mpReady ? `1px solid #444` : undefined
+            }}
+          >
+            {mpReady ? "CANCEL READY" : "I'M READY"}
+          </GoldBtn>
         </div>
       )}
 
