@@ -105,10 +105,19 @@ export default function BattleScreen({ go }) {
   const opponentHitCount = useGameStore(s => s.opponentHitCount);
   const opponentMissCount = useGameStore(s => s.opponentMissCount);
   const currentHeroId = useGameStore(s => s.currentHeroId);
+  const ping = useGameStore(s => s.ping);
   
+  const disconnectSocket = useGameStore(s => s.disconnectSocket);
   const [showHeroModal, setShowHeroModal] = useState(false);
   const hasAutoOpenedHeroModal = useRef(false);
   const [countdown, setCountdown] = useState(3);
+
+  const handleLeave = () => {
+    if (gameMode === 'pvp') {
+      disconnectSocket();
+    }
+    go("map");
+  };
 
   useEffect(() => {
     if (gameMode === 'pvp' && (mpStatus === 'searching' || mpStatus === 'found') && !hasAutoOpenedHeroModal.current) {
@@ -275,7 +284,8 @@ export default function BattleScreen({ go }) {
     if (opponentHitCount > prevOppHit.current) {
       const hits = opponentHitCount - prevOppHit.current;
       prevOppHit.current = opponentHitCount;
-      const dmg = playerDamage * hits; 
+      const oppDamage = HERO_REGISTRY[mpOpponentHeroId]?.damage || 28;
+      const dmg = oppDamage * hits; 
       const targetHp = Math.max(0, playerHP - dmg);
       triggerAction('monster_attack', { targetHp });
       
@@ -489,7 +499,7 @@ export default function BattleScreen({ go }) {
                   <button onClick={() => go("pvp")} style={{ ...ghostBtn, borderColor: gameMode === 'pvp' ? C.inkGold : '#ffffff22', color: gameMode === 'pvp' ? C.inkGold : C.ashDim }}>MULTIPLAYER</button>
                 </div>
               )}
-              <button onClick={() => go("map")} style={ghostBtn}>Flee (Burn 50%)</button>
+              <button onClick={handleLeave} style={ghostBtn}>Flee (Burn 50%)</button>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
@@ -568,7 +578,12 @@ export default function BattleScreen({ go }) {
                   </div>
                   <span style={{ zIndex: 2 }}>Opponent<br/>(Landmarks)</span>
                 </div>
-                <div style={{ background: "#000", padding: "4px 8px", fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.ashDim, textAlign: "center", borderTop: "1px solid #ffffff22" }}>{mpOpponent ? mpOpponent.handle : "WAITING"}</div>
+                <div style={{ background: "#000", padding: "4px 8px", fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.ashDim, textAlign: "center", borderTop: "1px solid #ffffff22" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{mpOpponent ? mpOpponent.handle : "WAITING"}</span>
+                    {ping > 0 && <span style={{ color: ping > 150 ? C.gestureBad : ping > 80 ? C.inkGold : C.gestureOk }}>{ping}ms</span>}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -644,7 +659,7 @@ export default function BattleScreen({ go }) {
               triggerAction('reset_match');
             }}>Rematch</RedBtn>}
             {gameMode !== 'pvp' && <button onClick={() => setShowHeroModal(true)} style={ghostBtn}>Change Hero</button>}
-            {(gameMode !== 'pvp' || mpStatus === 'ended') && <button onClick={() => go("map")} style={ghostBtn}>Back to Tower</button>}
+            {(gameMode !== 'pvp' || mpStatus === 'ended') && <button onClick={handleLeave} style={ghostBtn}>Back to Tower</button>}
           </div>
         </div>
       )}

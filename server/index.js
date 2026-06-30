@@ -169,64 +169,72 @@ io.on("connection", (socket) => {
     const p1 = room.playerIds[0];
     const p2 = room.playerIds[1];
 
-    if (room.players[p1].currentRoundScore !== null && room.players[p2].currentRoundScore !== null) {
-      if (room.roundTimeout) {
-        clearTimeout(room.roundTimeout);
-        room.roundTimeout = null;
-      }
-
-      const score1 = room.players[p1].currentRoundScore;
-      const score2 = room.players[p2].currentRoundScore;
-
-      let winnerId = null;
-      if (score1 > score2) winnerId = p1;
-      else if (score2 > score1) winnerId = p2;
-
-      if (winnerId) {
-        room.players[winnerId].score += 1;
-      }
-
-      io.to(roomId).emit("round_resolved", {
-        round: room.round,
-        scores: {
-          [room.players[p1].handle]: room.players[p1].score,
-          [room.players[p2].handle]: room.players[p2].score
-        },
-        winnerHandle: winnerId ? room.players[winnerId].handle : 'Tie'
-      });
-
-      room.players[p1].currentRoundScore = null;
-      room.players[p2].currentRoundScore = null;
-
-      if (room.players[p1].score === 2 || room.players[p2].score === 2 || room.round >= room.maxRounds) {
-        let matchWinnerId = null;
-        if (room.players[p1].score > room.players[p2].score) matchWinnerId = p1;
-        else if (room.players[p2].score > room.players[p1].score) matchWinnerId = p2;
-
-        const loserId = matchWinnerId === p1 ? p2 : p1;
-
-        console.log(`Match ${roomId} over. Winner: ${matchWinnerId ? room.players[matchWinnerId].handle : 'Tie'}`);
-        if (matchWinnerId && room.players[matchWinnerId].pubkey) {
-          payoutTokens(room.players[matchWinnerId].pubkey, room.bet);
-        } else {
-           console.log(`[Escrow] Tie or missing pubkey. No payout.`);
+    const checkRoundResolution = (room) => {
+      const p1 = room.playerIds[0];
+      const p2 = room.playerIds[1];
+      if (room.players[p1].currentRoundScore !== null && room.players[p2].currentRoundScore !== null) {
+        if (room.roundTimeout) {
+          clearTimeout(room.roundTimeout);
+          room.roundTimeout = null;
         }
 
-        io.to(roomId).emit("match_result", {
-          winnerHandle: matchWinnerId ? room.players[matchWinnerId].handle : 'Tie',
-          loserHandle: matchWinnerId ? room.players[loserId].handle : 'Tie',
-          bet: room.bet
+        const score1 = room.players[p1].currentRoundScore;
+        const score2 = room.players[p2].currentRoundScore;
+
+        let winnerId = null;
+        if (score1 > score2) winnerId = p1;
+        else if (score2 > score1) winnerId = p2;
+
+        if (winnerId) {
+          room.players[winnerId].score += 1;
+        }
+
+        io.to(roomId).emit("round_resolved", {
+          round: room.round,
+          scores: {
+            [room.players[p1].handle]: room.players[p1].score,
+            [room.players[p2].handle]: room.players[p2].score
+          },
+          winnerHandle: winnerId ? room.players[winnerId].handle : 'Tie'
         });
-        delete rooms[roomId];
-      } else {
-        room.round += 1;
-        const seed = generateSeed();
-        room.currentSeed = seed;
-        setTimeout(() => {
-          io.to(roomId).emit("battle_start", { seed, round: room.round });
-        }, 2000);
+
+        room.players[p1].currentRoundScore = null;
+        room.players[p2].currentRoundScore = null;
+
+        if (room.players[p1].score === 2 || room.players[p2].score === 2 || room.round >= room.maxRounds) {
+          let matchWinnerId = null;
+          if (room.players[p1].score > room.players[p2].score) matchWinnerId = p1;
+          else if (room.players[p2].score > room.players[p1].score) matchWinnerId = p2;
+
+          const loserId = matchWinnerId === p1 ? p2 : p1;
+
+          console.log(`Match ${roomId} over. Winner: ${matchWinnerId ? room.players[matchWinnerId].handle : 'Tie'}`);
+          if (matchWinnerId && room.players[matchWinnerId].pubkey) {
+            payoutTokens(room.players[matchWinnerId].pubkey, room.bet);
+          } else {
+             console.log(`[Escrow] Tie or missing pubkey. No payout.`);
+          }
+
+          io.to(roomId).emit("match_result", {
+            winnerHandle: matchWinnerId ? room.players[matchWinnerId].handle : 'Tie',
+            loserHandle: matchWinnerId ? room.players[loserId].handle : 'Tie',
+            bet: room.bet
+          });
+          delete rooms[roomId];
+        } else {
+          room.round += 1;
+          const seed = generateSeed();
+          room.currentSeed = seed;
+          setTimeout(() => {
+            io.to(roomId).emit("battle_start", { seed, round: room.round });
+          }, 2000);
+        }
       }
-    } else {
+    };
+    
+    checkRoundResolution(room);
+    
+    if (room.players[p1].currentRoundScore === null || room.players[p2].currentRoundScore === null) {
       // One player submitted, start a 15-second timeout for the other player
       if (!room.roundTimeout) {
         room.roundTimeout = setTimeout(() => {
@@ -235,8 +243,8 @@ io.on("connection", (socket) => {
           const inactivePlayerId = activePlayerId === p1 ? p2 : p1;
           
           room.players[inactivePlayerId].currentRoundScore = 0; // Force 0 score for the inactive player
-          // Re-emit round_result to self to trigger resolution
-          socket.emit("round_result", { roomId, accuracy: room.players[activePlayerId].currentRoundScore, hits: 0 });
+          // Re-evaluate round resolution now that we've forced a score
+          checkRoundResolution(room);
         }, 15000);
       }
     }
@@ -244,6 +252,10 @@ io.on("connection", (socket) => {
 
   socket.on("landmarks", ({ roomId, landmarks }) => {
     socket.to(roomId).emit("opponent_landmarks", landmarks);
+  });
+
+  socket.on("client_ping", (timestamp) => {
+    socket.emit("server_pong", timestamp);
   });
 
   socket.on("player_hit", ({ roomId }) => {

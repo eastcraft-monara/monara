@@ -71,6 +71,7 @@ const useGameStore = create((set, get) => ({
   mpRoomId: null,
   mpOpponent: null, // { handle: 'opponent_x' }
   mpStatus: 'idle', // 'idle' | 'searching' | 'found' | 'active' | 'ended'
+  ping: 0,
   mpRound: 1,
   mpScores: {},
   mpSeed: null,
@@ -145,11 +146,6 @@ const useGameStore = create((set, get) => ({
   setGesturePrediction: (prediction) => set({ latestPrediction: prediction }),
   triggerAction: (type, data = null) => {
     set({ lastAction: { type, timestamp: Date.now(), data } });
-    const { socketConnected, mpRoomId } = get();
-    if (socketConnected && mpRoomId && socketInstance) {
-      if (type === 'player_attack') socketInstance.emit('player_hit', { roomId: mpRoomId });
-      if (type === 'monster_attack') socketInstance.emit('player_miss', { roomId: mpRoomId });
-    }
   },
   
   // Progression Actions
@@ -205,8 +201,21 @@ const useGameStore = create((set, get) => ({
       socketInstance.on("connect", () => {
         console.log("Multiplayer connected.");
         set({ socketConnected: true });
+        
+        // Ping mechanism
+        if (socketInstance.pingInterval) clearInterval(socketInstance.pingInterval);
+        socketInstance.pingInterval = setInterval(() => {
+          if (socketInstance.connected) {
+            socketInstance.emit("client_ping", Date.now());
+          }
+        }, 2000);
       });
       
+      socketInstance.on("server_pong", (timestamp) => {
+        const latency = Date.now() - timestamp;
+        set({ ping: latency });
+      });
+
       socketInstance.on("connect_error", (err) => {
         console.error("Multiplayer connection error.");
       });
@@ -268,10 +277,15 @@ const useGameStore = create((set, get) => ({
       });
       
       socketInstance.on("match_result", ({ winnerHandle, loserHandle }) => {
-        console.log("Match Ended.");
+        console.log(`Match over. Winner: ${winnerHandle}, Loser: ${loserHandle}`);
         set({ mpWinner: winnerHandle, mpStatus: 'ended' });
       });
       
+      socketInstance.on("opponent_disconnected", () => {
+        console.log("Opponent disconnected during match.");
+        set({ mpStatus: 'ended', mpWinner: 'you' });
+      });
+
       socketInstance.on("error", (err) => {
         console.error("Multiplayer Server Error.");
       });
