@@ -632,6 +632,11 @@ export default function BattleScreen({ go }) {
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, color: C.ash, marginBottom: 16,
             textAlign: "center", maxWidth: 400
           }}>
+            {gameMode === 'pvp' && mpStatus === 'ended' && (
+              <p style={{ color: C.ash, fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, marginBottom: 20, textAlign: "center" }}>
+                Score: {mpScores["you"] || 0} - {mpScores["opp"] || 0}
+              </p>
+            )}
             {gameMode === 'pvp'
               ? (mpStatus === 'ended' ? (monsterHP === 0 ? "You claimed the pot!" : "Your bet was lost.") : "Waiting for next round...")
               : (monsterHP === 0 
@@ -680,16 +685,18 @@ export default function BattleScreen({ go }) {
           
           <div style={{ display: "flex", gap: 32, marginBottom: 40, background: "rgba(0,0,0,0.6)", padding: "20px 40px", borderRadius: 16, backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.1)" }}>
             {/* You */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200, minHeight: 280 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>YOU</div>
               <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkGold, fontWeight: "bold", textAlign: "center" }}>
                 {HERO_REGISTRY[currentHeroId]?.name || "Samurai"}
               </div>
-              <SpriteView conf={HERO_REGISTRY[currentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="right" />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: 140, position: "relative" }}>
+                <SpriteView conf={HERO_REGISTRY[currentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="right" />
+              </div>
               {!mpReady && mpStatus !== 'countdown' && (
-                <button onClick={() => setShowHeroModal(true)} style={{...ghostBtn, padding: "4px 8px", fontSize: 10, marginTop: -8}}>Change</button>
+                <button onClick={() => setShowHeroModal(true)} style={{...ghostBtn, padding: "4px 8px", fontSize: 10}}>Change</button>
               )}
-              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpReady ? C.gestureOk : "#444"}`, color: mpReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: mpReady ? 24 : 0 }}>
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpReady ? C.gestureOk : "#444"}`, color: mpReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: "auto" }}>
                 {mpReady ? "READY ✓" : "WAITING"}
               </div>
             </div>
@@ -697,17 +704,19 @@ export default function BattleScreen({ go }) {
             <div style={{ color: C.ashDim, alignSelf: "center", fontFamily: "var(--font-saira)", fontSize: 20 }}>VS</div>
             
             {/* Opponent */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: 200, minHeight: 280 }}>
               <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: C.ash }}>{mpOpponent?.handle || "OPPONENT"}</div>
               <div style={{ fontSize: 14, fontFamily: "var(--font-saira)", color: C.inkRed, fontWeight: "bold", textAlign: "center" }}>
                 {mpOpponentReady ? (HERO_REGISTRY[mpOpponentHeroId]?.name || "Samurai") : "---"}
               </div>
-              {mpOpponentReady ? (
-                <SpriteView conf={HERO_REGISTRY[mpOpponentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="left" />
-              ) : (
-                <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>
-              )}
-              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpOpponentReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpOpponentReady ? C.gestureOk : "#444"}`, color: mpOpponentReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: 140 }}>
+                {mpOpponentReady ? (
+                  <SpriteView conf={HERO_REGISTRY[mpOpponentHeroId] || HERO_REGISTRY['samurai_1']} type="hero" facing="left" />
+                ) : (
+                  <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ffffff22", borderRadius: 8, color: C.ashDim, fontSize: 10 }}>WAITING...</div>
+                )}
+              </div>
+              <div style={{ padding: "8px 16px", borderRadius: 4, background: mpOpponentReady ? `${C.gestureOk}22` : "#222", border: `1px solid ${mpOpponentReady ? C.gestureOk : "#444"}`, color: mpOpponentReady ? C.gestureOk : C.ashDim, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: "bold", width: "100%", textAlign: "center", marginTop: "auto" }}>
                 {mpOpponentReady ? "READY ✓" : "WAITING"}
               </div>
             </div>

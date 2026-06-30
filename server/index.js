@@ -226,7 +226,10 @@ io.on("connection", (socket) => {
           const seed = generateSeed();
           room.currentSeed = seed;
           setTimeout(() => {
-            io.to(roomId).emit("battle_start", { seed, round: room.round });
+            io.to(roomId).emit("countdown_start");
+            setTimeout(() => {
+              io.to(roomId).emit("battle_start", { seed, round: room.round });
+            }, 3000);
           }, 2000);
         }
       }

@@ -193,6 +193,64 @@ export default class BattleScene extends Phaser.Scene {
 
     // --- Subscribe to game store actions ---
     this.unsubscribe = useGameStore.subscribe((state, prevState) => {
+      // 0. Handle opponent hero change in PvP
+      if (gameMode === 'pvp' && state.mpOpponentHeroId && state.mpOpponentHeroId !== prevState.mpOpponentHeroId) {
+        if (this.monsterSprite) {
+          const newHeroId = state.mpOpponentHeroId;
+          const newHeroConfig = HERO_REGISTRY[newHeroId] || HERO_REGISTRY['demon_samurai'];
+          
+          CharacterLoader.setupAnimations(this, newHeroConfig);
+          
+          const oldX = this.monsterSprite.x;
+          const oldY = this.monsterSprite.y;
+          this.monsterSprite.destroy();
+          
+          this.monsterSprite = CharacterLoader.createSprite(
+            this, newHeroConfig,
+            oldX, oldY,
+            { flipX: true, bgScale: 1 }
+          );
+          
+          if (state.currentHeroId === newHeroId) {
+            if (state.isHost) {
+              this.monsterSprite.setTint(0xff7777);
+            } else {
+              this.playerSprite.setTint(0xff7777);
+            }
+          }
+        }
+      }
+
+      // 0.5. Handle local player hero change
+      if (state.currentHeroId && state.currentHeroId !== prevState.currentHeroId) {
+        if (this.playerSprite) {
+          const newHeroId = state.currentHeroId;
+          const newHeroConfig = HERO_REGISTRY[newHeroId] || HERO_REGISTRY['demon_samurai'];
+          
+          CharacterLoader.setupAnimations(this, newHeroConfig);
+          
+          const oldX = this.playerSprite.x;
+          const oldY = this.playerSprite.y;
+          this.playerSprite.destroy();
+          
+          this.playerSprite = CharacterLoader.createSprite(
+            this, newHeroConfig,
+            oldX, oldY,
+            { flipX: false, bgScale: 1 }
+          );
+          
+          if (gameMode === 'pvp' && state.mpOpponentHeroId === newHeroId) {
+            if (state.isHost) {
+              this.monsterSprite.setTint(0xff7777);
+              this.playerSprite.clearTint();
+            } else {
+              this.playerSprite.setTint(0xff7777);
+              this.monsterSprite.clearTint();
+            }
+          }
+        }
+      }
+
       // 1. Handle battle state transition (e.g. model finished loading)
       if (state.battleState === 'active' && prevState.battleState !== 'active') {
         if (this.bgmIntro && this.bgmIntro.isPlaying) {
